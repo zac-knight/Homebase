@@ -1,0 +1,61 @@
+# Everything listed here stays on your machine and is never committed.
+
+# ── Personal data ─────────────────────────────────────────────────────────────
+# Exports of your own bookmarks and browsing activity. Use sample-data/ for anything shareable.
+/data/
+homebase-export-*.json
+*.parquet
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Packed extension and its signing key
+*.crx
+*.zip
+
+# ── Local databases ───────────────────────────────────────────────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.venv/
+
+# ── Build output ──────────────────────────────────────────────────────────────
+/extension/dist/
+*.tsbuildinfo
+
+# ── Test and evaluation output ────────────────────────────────────────────────
+/extension/test-results/
+/extension/playwright-report/
+/extension/coverage/
+/backend/eval/
+/backend/htmlcov/
+.coverage
+mlruns/
+mlartifacts/
+
+# ── Caches ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.cache/
+.vite/
+
+# ── Editors, tools and operating systems ──────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.claude/
+*.log

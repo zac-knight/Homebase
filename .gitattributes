@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+
+# Collapse lockfiles in pull request diffs and keep them out of language statistics.
+extension/package-lock.json linguist-generated
+backend/uv.lock linguist-generated
+sample-data/*.json linguist-vendored

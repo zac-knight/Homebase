@@ -1,0 +1,24 @@
+# pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/
+  - repo: local
+    hooks:
+      - id: extension-lint
+        name: eslint (extension)
+        entry: bash -c 'cd extension && npx eslint .'
+        language: system
+        files: ^extension/.*\.(ts|tsx)$
+        pass_filenames: false
+      - id: extension-typecheck
+        name: tsc (extension)
+        entry: bash -c 'cd extension && npx tsc --noEmit'
+        language: system
+        files: ^extension/.*\.(ts|tsx)$
+        pass_filenames: false

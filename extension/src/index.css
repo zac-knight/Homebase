@@ -1,0 +1,802 @@
+@import 'tailwindcss';
+
+/* Default colours (the Paper theme) so the very first paint is right. lib/theme.ts then sets
+   the chosen theme's tokens as inline variables on <html>, which take precedence. */
+:root {
+  color-scheme: light;
+  --bg: #f5f4ef;
+  --card: #ffffff;
+  --ink: #1b1a17;
+  --muted: #5d5b54;
+  --line: #e2e0d8;
+  --hover: #efede6;
+  --accent: #0f6b5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcefea;
+  --danger: #b3261e;
+  --series-1: #2a78d6;
+  --bg-image: none;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #141412;
+  --card: #1d1d1a;
+  --ink: #efeee8;
+  --muted: #a9a79e;
+  --line: #33322d;
+  --hover: #292924;
+  --accent: #62c7b2;
+  --accent-ink: #0a1f1b;
+  --accent-soft: #1c3530;
+  --danger: #f2877f;
+  --series-1: #3987e5;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-hover: var(--hover);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.04), 0 10px 28px -14px rgb(0 0 0 / 0.22);
+}
+
+/* Not inline: these stay as variables so the typeface and corner settings can override them. */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+}
+
+/* ---- typeface --------------------------------------------------------------------------- */
+:root[data-font='modern'] {
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+:root[data-font='editorial'] {
+  --font-sans: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+}
+:root[data-font='rounded'] {
+  --font-sans: ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Nunito', system-ui, sans-serif;
+  --font-display: ui-rounded, 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', 'Nunito', system-ui, sans-serif;
+}
+:root[data-font='mono'] {
+  --font-sans: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --font-display: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+/* ---- corners ---------------------------------------------------------------------------- */
+:root[data-radius='sharp'] {
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 5px;
+}
+:root[data-radius='soft'] {
+  --radius-md: 0.6rem;
+  --radius-lg: 0.85rem;
+  --radius-xl: 1.1rem;
+  --radius-2xl: 1.6rem;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- page background -------------------------------------------------------------------- */
+/* Two fixed layers behind everything. They only ever animate transform or opacity, so the
+   moving backgrounds stay on the compositor and cost nothing while the page is idle. */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+:root {
+  --accent-2: oklch(from var(--accent) l c calc(h + 70));
+  --accent-3: oklch(from var(--accent) l c calc(h - 60));
+}
+[data-bg='glow'] body::before {
+  background: radial-gradient(64rem 26rem at 50% -9rem, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+  transform-origin: 50% 0;
+}
+[data-bg='glow'] body::after {
+  background: radial-gradient(40rem 22rem at 85% 110%, color-mix(in oklch, var(--accent-2) 10%, transparent), transparent 70%);
+}
+[data-bg='aurora'] body::before {
+  inset: -25%;
+  background:
+    radial-gradient(38% 46% at 22% 24%, color-mix(in oklch, var(--accent) 32%, transparent), transparent 72%),
+    radial-gradient(42% 50% at 78% 20%, color-mix(in oklch, var(--accent-2) 28%, transparent), transparent 72%),
+    radial-gradient(46% 46% at 58% 82%, color-mix(in oklch, var(--accent-3) 24%, transparent), transparent 72%);
+  filter: blur(48px);
+}
+[data-bg='aurora'] body::after {
+  inset: -25%;
+  background:
+    radial-gradient(30% 36% at 70% 62%, color-mix(in oklch, oklch(from var(--accent) l c calc(h + 140)) 20%, transparent), transparent 70%),
+    radial-gradient(28% 34% at 26% 70%, color-mix(in oklch, oklch(from var(--accent) l c calc(h - 110)) 18%, transparent), transparent 70%);
+  filter: blur(56px);
+}
+[data-bg='gradient'] body::before {
+  inset: -45%;
+  background: linear-gradient(135deg, color-mix(in oklch, var(--accent) 24%, var(--bg)), var(--bg) 46%, color-mix(in oklch, var(--accent-2) 22%, var(--bg)));
+}
+[data-bg='gradient'] body::after {
+  background: radial-gradient(50rem 30rem at 50% 115%, color-mix(in oklch, var(--accent-3) 16%, transparent), transparent 70%);
+}
+[data-bg='dots'] body::before {
+  inset: 0 0 -44px 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 16%, transparent) 1.1px, transparent 1.1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+}
+[data-bg='dots'] body::after {
+  background: radial-gradient(50rem 22rem at 50% -8rem, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%);
+}
+/* A retro floor of lines running to the horizon, under a soft glow. */
+[data-bg='grid'] body::before {
+  background:
+    radial-gradient(70% 36% at 50% 58%, color-mix(in oklch, var(--accent) 26%, transparent), transparent 72%),
+    radial-gradient(46% 30% at 50% -6%, color-mix(in oklch, var(--accent-2) 18%, transparent), transparent 72%);
+}
+[data-bg='grid'] body::after {
+  inset: 56% -60% -30% -60%;
+  --grid-line: color-mix(in srgb, var(--accent) 36%, transparent);
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(420px) rotateX(64deg);
+  transform-origin: 50% 0;
+  mask-image: linear-gradient(to bottom, transparent, black 35%, black 75%, transparent);
+}
+/* Three sizes of speck on a 600px repeat, so sliding up by 600px loops without a seam. */
+[data-bg='stars'] body::before {
+  inset: 0 0 -600px 0;
+  --star: color-mix(in srgb, var(--ink) 72%, transparent);
+  --star-dim: color-mix(in srgb, var(--ink) 40%, transparent);
+  background-image:
+    radial-gradient(1.6px 1.6px at 70px 90px, var(--accent), transparent),
+    radial-gradient(1.8px 1.8px at 410px 330px, var(--accent-2), transparent),
+    radial-gradient(1.6px 1.6px at 250px 520px, var(--accent-3), transparent),
+    radial-gradient(1.2px 1.2px at 40px 60px, var(--star), transparent),
+    radial-gradient(1.2px 1.2px at 190px 150px, var(--star), transparent),
+    radial-gradient(1px 1px at 120px 250px, var(--star), transparent),
+    radial-gradient(1.3px 1.3px at 270px 30px, var(--star), transparent),
+    radial-gradient(0.9px 0.9px at 30px 130px, var(--star-dim), transparent),
+    radial-gradient(0.9px 0.9px at 150px 40px, var(--star-dim), transparent),
+    radial-gradient(0.9px 0.9px at 90px 180px, var(--star-dim), transparent);
+  background-size: 600px 600px, 600px 600px, 600px 600px, 300px 300px, 300px 300px, 300px 300px, 300px 300px, 200px 200px, 200px 200px, 200px 200px;
+}
+[data-bg='stars'] body::after {
+  background:
+    radial-gradient(44rem 26rem at 18% 12%, color-mix(in oklch, var(--accent) 20%, transparent), transparent 70%),
+    radial-gradient(40rem 26rem at 86% 78%, color-mix(in oklch, var(--accent-2) 16%, transparent), transparent 70%);
+}
+[data-bg='image'] body::before {
+  /* A veil of the page colour keeps text readable over any picture. */
+  background:
+    linear-gradient(color-mix(in srgb, var(--bg) 62%, transparent), color-mix(in srgb, var(--bg) 82%, transparent)),
+    var(--bg-image) center / cover no-repeat;
+}
+
+/* ---- card style ------------------------------------------------------------------------- */
+[data-cards='glass'] .surface {
+  background-color: color-mix(in srgb, var(--card) 58%, transparent);
+  border-color: color-mix(in srgb, var(--ink) 12%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+}
+[data-cards='outline'] .surface {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* In the base layer so utilities such as outline-none can still opt out. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* ---- always-on polish ------------------------------------------------------------------- */
+/* Headline type picks up the theme: ink that warms into the accent. `color` stays the ink colour
+   (only the fill is transparent) so the text keeps a real, checkable colour. */
+.title-gradient {
+  background-image: linear-gradient(100deg, var(--ink) 0%, var(--ink) 30%, var(--accent) 55%, var(--accent-2) 75%, var(--ink) 100%);
+  background-size: 220% 100%;
+  background-position: 30% 0;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.surface {
+  /* Not transform: drag and drop moves cards with it and must not lag behind the pointer. */
+  transition-property: border-color, box-shadow, translate, background-color;
+  transition-duration: 0.22s;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.lift {
+  transition-property: border-color, box-shadow, translate, transform, background-color;
+  transition-duration: 0.22s;
+  transition-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.glow-hover:hover {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 18px 40px -20px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+/* The search bar: a ring of accent light. Still by default; it circles when motion is on. */
+@property --angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.glow-ring {
+  position: relative;
+}
+.glow-ring::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--angle), transparent 0 55%, var(--accent-3), var(--accent), var(--accent-2), transparent);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+  opacity: 0.85;
+}
+.nav-pill {
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+/* Section headings trail off into a hairline. */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+/* The welcome panel: two soft lights behind its content, in the theme's colours. */
+.hero {
+  isolation: isolate;
+}
+.hero::before,
+.hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.hero::after {
+  width: 34rem;
+  height: 34rem;
+  top: -16rem;
+  right: -10rem;
+  background: radial-gradient(circle, color-mix(in oklch, var(--accent) 34%, transparent), transparent 66%);
+}
+.hero::before {
+  width: 26rem;
+  height: 26rem;
+  bottom: -16rem;
+  left: 22%;
+  background: radial-gradient(circle, color-mix(in oklch, var(--accent-2) 24%, transparent), transparent 66%);
+}
+.logo-mark {
+  background-image: linear-gradient(140deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 18px -10px var(--accent);
+}
+
+/* ---- folder cards ----------------------------------------------------------------------- */
+.folder,
+.folder-hue {
+  --folder: oklch(from var(--accent) l c calc(h + var(--fh, 0)));
+  --folder-2: oklch(from var(--accent) l c calc(h + var(--fh, 0) + 50));
+}
+/* A glow of the folder's colour in the corner away from the text, and a bar along the top. */
+.folder::before,
+.folder::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+.folder::before {
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(17rem 9rem at 100% 0%, color-mix(in oklch, var(--folder) 26%, transparent), transparent 70%);
+  opacity: 0.75;
+  transition: opacity 0.3s;
+}
+.folder::after {
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--folder), var(--folder-2) 45%, transparent 90%);
+  transform-origin: 0 50%;
+}
+.folder:hover,
+.folder[data-state] {
+  border-color: color-mix(in srgb, var(--folder) 65%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--folder) 20%, transparent),
+    0 24px 46px -26px color-mix(in srgb, var(--folder) 75%, transparent);
+}
+.folder:hover::before {
+  opacity: 1;
+}
+.folder[data-state='dragging'] {
+  z-index: 10;
+}
+.folder[data-state='over'] {
+  outline: 2px solid color-mix(in srgb, var(--folder) 55%, transparent);
+  outline-offset: 2px;
+}
+.folder-tile {
+  background: linear-gradient(140deg, var(--folder), var(--folder-2));
+  box-shadow:
+    0 10px 18px -10px var(--folder),
+    inset 0 1px 0 rgb(255 255 255 / 0.28);
+  transition: transform 0.3s cubic-bezier(0.3, 1.5, 0.4, 1);
+}
+.folder-glyph,
+.folder-grip {
+  transition:
+    opacity 0.18s,
+    transform 0.25s cubic-bezier(0.3, 1.5, 0.4, 1);
+}
+.folder-grip {
+  opacity: 0;
+  transform: scale(0.6);
+}
+.folder-tile:hover .folder-grip,
+.folder-tile:focus-visible .folder-grip {
+  opacity: 1;
+  transform: none;
+}
+.folder-tile:hover .folder-glyph,
+.folder-tile:focus-visible .folder-glyph {
+  opacity: 0;
+  transform: scale(0.6);
+}
+.folder-rule {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--folder) 45%, var(--line)), var(--line) 40%, transparent);
+}
+.folder .row-link:hover {
+  background-color: color-mix(in srgb, var(--folder) 14%, transparent);
+}
+.folder .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--folder) 45%, transparent) transparent;
+}
+
+/* ---- motion ----------------------------------------------------------------------------- */
+/* `backwards` fill only: once an entrance finishes it stops applying, so it cannot fight the
+   transforms that drag and drop sets on the same elements. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    filter: blur(var(--rise-blur, 0px));
+    transform: translateY(var(--rise, 8px)) scale(var(--rise-scale, 1));
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.94);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+}
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 28px) scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -4px) scale(1.01);
+  }
+}
+@keyframes star-pop {
+  40% {
+    transform: scale(1.5) rotate(-14deg);
+  }
+  70% {
+    transform: scale(0.9) rotate(6deg);
+  }
+}
+@keyframes star-burst {
+  from {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+@keyframes title-in {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    letter-spacing: 0.06em;
+    transform: translateY(14px);
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: 130% 0;
+  }
+}
+@keyframes spin-angle {
+  to {
+    --angle: 360deg;
+  }
+}
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes pulse-soft {
+  50% {
+    opacity: 0.55;
+    transform: scale(1.12);
+  }
+}
+@keyframes drift {
+  to {
+    transform: translate3d(5%, -4%, 0) rotate(10deg) scale(1.1);
+  }
+}
+@keyframes drift-back {
+  to {
+    transform: translate3d(-6%, 5%, 0) rotate(-14deg) scale(1.16);
+  }
+}
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes breathe {
+  to {
+    opacity: 0.6;
+    transform: scale(1.18);
+  }
+}
+@keyframes pan-dots {
+  to {
+    transform: translate3d(0, -44px, 0);
+  }
+}
+@keyframes pan-stars {
+  to {
+    transform: translate3d(0, -600px, 0);
+  }
+}
+@keyframes pan-grid {
+  to {
+    background-position: 0 64px;
+  }
+}
+@keyframes scroll-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+}
+
+/* Entrances */
+:root:not([data-motion='off']) .rise {
+  animation: rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 30ms);
+}
+:root:not([data-motion='off']) .pop {
+  animation: pop 0.32s cubic-bezier(0.2, 1.3, 0.3, 1) backwards;
+}
+:root:not([data-motion='off']) .fade {
+  animation: fade 0.24s ease-out backwards;
+}
+:root:not([data-motion='off']) .toast {
+  animation: slide-up 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+:root:not([data-motion='off']) .title-in {
+  animation: title-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+:root:not([data-motion='off']) .title-gradient {
+  animation: shimmer 9s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off']) .title-gradient.title-in {
+  animation:
+    title-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards,
+    shimmer 9s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off']) .glow-ring::before {
+  animation: spin-angle 5s linear infinite;
+}
+:root:not([data-motion='off']) .bar-grow {
+  transform-origin: 0 50%;
+  animation: grow-x 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 60ms + 150ms);
+}
+:root:not([data-motion='off']) .hero::after {
+  animation: breathe 8s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off']) .hero::before {
+  animation: breathe 11s ease-in-out infinite alternate-reverse;
+}
+:root:not([data-motion='off']) .folder::after {
+  animation: grow-x 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 55ms + 250ms);
+}
+:root:not([data-motion='off']) .folder:hover .folder-tile {
+  transform: rotate(-7deg) scale(1.08);
+}
+:root:not([data-motion='off']) .folder.surface:hover {
+  background-image: radial-gradient(20rem circle at var(--mx, 50%) var(--my, 0px), color-mix(in srgb, var(--folder) 14%, transparent), transparent 65%);
+}
+:root:not([data-motion='off']) .spark-pulse {
+  animation: pulse-soft 2.4s ease-in-out infinite;
+}
+
+/* Small reactions */
+:root:not([data-motion='off']) .star-on svg {
+  animation: star-pop 0.45s ease-out;
+}
+.star-on {
+  position: relative;
+}
+:root:not([data-motion='off']) .star-on::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: star-burst 0.55s ease-out;
+}
+:root:not([data-motion='off']) :where(button, [role='radio'], [role='switch']):active {
+  scale: 0.95;
+}
+:root:not([data-motion='off']) :where(button) {
+  transition-property: color, background-color, border-color, box-shadow, scale, opacity;
+  transition-duration: 0.16s;
+}
+:root:not([data-motion='off']) .knob {
+  transition: all 0.32s cubic-bezier(0.3, 1.6, 0.4, 1);
+}
+:root:not([data-motion='off']) .nav-pill {
+  transition:
+    transform 0.45s cubic-bezier(0.3, 1.35, 0.4, 1),
+    width 0.45s cubic-bezier(0.3, 1.35, 0.4, 1),
+    height 0.45s cubic-bezier(0.3, 1.35, 0.4, 1);
+}
+.row-link > :first-child,
+.row-link > span,
+.lift img,
+.lift > span:first-child {
+  transition: transform 0.25s cubic-bezier(0.3, 1.5, 0.4, 1);
+}
+:root:not([data-motion='off']) .row-link:hover > :first-child {
+  transform: scale(1.2) rotate(-6deg);
+}
+:root:not([data-motion='off']) .row-link:hover > span:last-child {
+  transform: translateX(3px);
+}
+:root:not([data-motion='off']) .lift:hover > :first-child {
+  transform: scale(1.14) rotate(-5deg);
+}
+/* A soft light under the pointer; lib/effects.ts keeps --mx and --my up to date. */
+:root:not([data-motion='off']) .surface:hover {
+  background-image: radial-gradient(20rem circle at var(--mx, 50%) var(--my, 0px), color-mix(in srgb, var(--accent) 13%, transparent), transparent 65%);
+}
+
+/* Backgrounds that move */
+:root:not([data-motion='off'])[data-bg='aurora'] body::before {
+  animation: drift 24s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off'])[data-bg='aurora'] body::after {
+  animation: drift-back 31s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off'])[data-bg='glow'] body::before {
+  animation: breathe 9s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off'])[data-bg='gradient'] body::before {
+  animation: turn 80s linear infinite;
+}
+:root:not([data-motion='off'])[data-bg='dots'] body::before {
+  animation: pan-dots 5s linear infinite;
+}
+:root:not([data-motion='off'])[data-bg='stars'] body::before {
+  animation: pan-stars 150s linear infinite;
+}
+:root:not([data-motion='off'])[data-bg='stars'] body::after,
+:root:not([data-motion='off'])[data-bg='gradient'] body::after,
+:root:not([data-motion='off'])[data-bg='grid'] body::before {
+  animation: breathe 11s ease-in-out infinite alternate;
+}
+:root:not([data-motion='off'])[data-bg='grid'] body::after {
+  animation: pan-grid 2.2s linear infinite;
+}
+
+/* Lively: bigger entrances, cards that lean towards the pointer, and reveals on scroll. */
+:root[data-motion='lively'] .rise {
+  --rise: 26px;
+  --rise-scale: 0.94;
+  --rise-blur: 6px;
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.2, 1.25, 0.3, 1);
+  animation-delay: calc(min(var(--i, 0), 14) * 55ms);
+}
+:root[data-motion='lively'] .lift:hover {
+  transform: perspective(500px) rotateX(calc(var(--ty, 0) * -14deg)) rotateY(calc(var(--tx, 0) * 14deg)) translateY(-4px) scale(1.03);
+}
+@supports (animation-timeline: view()) {
+  :root[data-motion='lively'] .reveal {
+    animation:
+      rise 0.7s cubic-bezier(0.2, 1.25, 0.3, 1) backwards,
+      scroll-in linear backwards;
+    animation-delay: calc(min(var(--i, 0), 14) * 55ms), 0s;
+    animation-timeline: auto, view();
+    animation-range:
+      normal,
+      entry 0% entry 70%;
+  }
+}
+:root[data-motion='off'] * {
+  transition: none !important;
+}
+
+/* ---- moving between views and themes ---------------------------------------------------- */
+/* lib/effects.ts sets data-vt on <html> for the length of one view transition. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(-12px) scale(0.985);
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(22px) scale(0.985);
+  }
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--vx, 50%) var(--vy, 50%));
+  }
+  to {
+    clip-path: circle(150vmax at var(--vx, 50%) var(--vy, 50%));
+  }
+}
+:root[data-vt='nav'] main {
+  view-transition-name: page;
+}
+:root[data-vt='nav']::view-transition-old(root) {
+  display: none;
+}
+:root[data-vt='nav']::view-transition-new(root) {
+  animation: none;
+}
+:root[data-vt='nav']::view-transition-group(page) {
+  animation-duration: 0.4s;
+}
+:root[data-vt='nav']::view-transition-old(page) {
+  height: auto;
+  animation: vt-out 0.2s ease-in both;
+}
+:root[data-vt='nav']::view-transition-new(page) {
+  height: auto;
+  animation: vt-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both;
+}
+:root[data-vt='theme']::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+:root[data-vt='theme']::view-transition-new(root) {
+  animation: theme-reveal 0.8s cubic-bezier(0.5, 0, 0.2, 1) both;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---- folder pane ------------------------------------------------------------------------ */
+@keyframes pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+:root:not([data-motion='off']) .pane-in {
+  animation: pane-in 0.18s ease-out backwards;
+}
+
+/* ---- waves ------------------------------------------------------------------------------ */
+/* Three layers of the same wave, each twice as wide as the screen and slid one wavelength, so the
+   loop has no seam. Only transform moves, so it stays on the compositor. */
+.waves {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: -1;
+  height: min(46vh, 26rem);
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(to top, #000 35%, transparent);
+}
+.wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  fill: var(--wave);
+  animation: wave-drift var(--wave-speed) linear infinite;
+}
+.wave-1 {
+  --wave: color-mix(in oklch, var(--accent) 16%, transparent);
+  --wave-speed: 34s;
+  height: 92%;
+}
+.wave-2 {
+  --wave: color-mix(in oklch, var(--accent-2) 15%, transparent);
+  --wave-speed: 26s;
+  height: 70%;
+  animation-direction: reverse;
+}
+.wave-3 {
+  --wave: color-mix(in oklch, var(--accent-3) 18%, transparent);
+  --wave-speed: 19s;
+  height: 48%;
+}
+@keyframes wave-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+:root[data-motion='off'] .wave {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave {
+    animation: none;
+  }
+}

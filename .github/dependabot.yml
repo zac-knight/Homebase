@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /extension
+    schedule: { interval: monthly }
+    groups:
+      extension: { patterns: ["*"] }
+  - package-ecosystem: uv
+    directory: /backend
+    schedule: { interval: monthly }
+    groups:
+      backend: { patterns: ["*"] }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
