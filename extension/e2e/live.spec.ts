@@ -29,7 +29,7 @@ test('syncs with a running server and uses its search and answers', async ({ pag
   await page.keyboard.press('/')
   await page.getByRole('combobox', { name: 'Search bookmarks or the web' }).fill('that article on how attention works')
   await expect(page.getByText('Found by meaning')).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByRole('option').first()).toContainText(/Transformer|Attention/)
+  await expect(page.getByRole('listbox', { name: 'Results' }).getByRole('option').first()).toContainText(/Transformer|Attention/)
   await page.getByRole('option', { name: /Ask your bookmarks/ }).click()
   await expect(page.getByText('From your bookmarks')).toBeVisible({ timeout: 30_000 })
   await shot('search')

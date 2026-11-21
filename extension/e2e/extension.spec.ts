@@ -49,7 +49,7 @@ test('installed extension shows real bookmarks on the new tab page', async () =>
   await page.getByRole('button', { name: 'Pin Loose link' }).click()
   await page.keyboard.press('/')
   await page.getByRole('combobox', { name: 'Search bookmarks or the web' }).fill('artcle') // typo on purpose
-  await expect(page.getByRole('option').first()).toContainText('Example article')
+  await expect(page.getByRole('listbox', { name: 'Results' }).getByRole('option').first()).toContainText('Example article')
   await page.keyboard.press('Escape')
   await context.route('https://example.org/**', (route) => route.fulfill({ body: 'ok', contentType: 'text/html' }))
   // Links open in a new tab, so this page stays where it is.
