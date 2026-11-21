@@ -116,6 +116,7 @@ interface ListProps {
   onOpen: (b: Bookmark) => void
   onTogglePin: (b: Bookmark) => void
   onRemove: (b: Bookmark) => void
+  onRenameLink?: (b: Bookmark, title: string) => void
   rowHeight: number
   newTab: boolean
   /** Small tags by link id, e.g. how often the busiest ones are opened. */
@@ -123,7 +124,7 @@ interface ListProps {
 }
 
 /** Only the rows in view are in the DOM, so a folder with thousands of links costs the same as one with twelve. */
-function VirtualList({ bookmarks, pinned, onOpen, onTogglePin, onRemove, rowHeight, newTab, badges }: ListProps) {
+function VirtualList({ bookmarks, pinned, onOpen, onTogglePin, onRemove, onRenameLink, rowHeight, newTab, badges }: ListProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const virtual = useVirtualizer({ count: bookmarks.length, getScrollElement: () => scroller.current, estimateSize: () => rowHeight, overscan: 8 })
   return (
@@ -131,7 +132,7 @@ function VirtualList({ bookmarks, pinned, onOpen, onTogglePin, onRemove, rowHeig
       <ul className="relative" style={{ height: virtual.getTotalSize() }}>
         {virtual.getVirtualItems().map((item) => {
           const b = bookmarks[item.index]
-          return <BookmarkRow key={b.id} bookmark={b} pinned={pinned.has(b.id)} badge={badges.get(b.id)} onOpen={onOpen} onTogglePin={onTogglePin} onRemove={onRemove} newTab={newTab} height={rowHeight} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }} />
+          return <BookmarkRow key={b.id} bookmark={b} pinned={pinned.has(b.id)} badge={badges.get(b.id)} onOpen={onOpen} onTogglePin={onTogglePin} onRemove={onRemove} onRename={onRenameLink} newTab={newTab} height={rowHeight} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }} />
         })}
       </ul>
     </div>
@@ -147,7 +148,7 @@ function Links({ bookmarks, ...list }: ListProps) {
     // One link per line, each sliding in just after the one above it.
     <ul>
       {bookmarks.map((b, i) => (
-        <BookmarkRow key={b.id} bookmark={b} pinned={list.pinned.has(b.id)} badge={list.badges.get(b.id)} onOpen={list.onOpen} onTogglePin={list.onTogglePin} onRemove={list.onRemove} newTab={list.newTab} height={list.rowHeight} animateIn style={{ '--r': i } as React.CSSProperties} />
+        <BookmarkRow key={b.id} bookmark={b} pinned={list.pinned.has(b.id)} badge={list.badges.get(b.id)} onOpen={list.onOpen} onTogglePin={list.onTogglePin} onRemove={list.onRemove} onRename={list.onRenameLink} newTab={list.newTab} height={list.rowHeight} animateIn style={{ '--r': i } as React.CSSProperties} />
       ))}
     </ul>
   )

@@ -8,7 +8,7 @@ import { WeatherChip } from './components/Weather'
 import { Waves } from './components/Waves'
 import { getAuth } from './lib/api'
 import { withTransition } from './lib/effects'
-import { type FolderInfo, createFolder, deleteFolders, isRootFolder, loadBookmarks, loadFolders, onBookmarksChanged, openAllInGroup, removeBookmark, renameFolder } from './lib/platform'
+import { type FolderInfo, createFolder, deleteFolders, isRootFolder, loadBookmarks, loadFolders, onBookmarksChanged, openAllInGroup, removeBookmark, renameBookmark, renameFolder } from './lib/platform'
 import { buildIndex } from './lib/search'
 import { assignSlots, moveToSlot } from './lib/slots'
 import { getEvents, getFavourites, getFolderOrder, getFolderSlots, getSettings, logEvent, saveSettings, setFavourites, setFolderSlots } from './lib/store'
@@ -199,6 +199,11 @@ export default function App() {
     setData((d) => d && { ...d, bookmarks: d.bookmarks.filter((x) => x.id !== b.id) })
   }
 
+  async function rename(b: Bookmark, title: string) {
+    await renameBookmark(b, title)
+    setData((d) => d && { ...d, bookmarks: d.bookmarks.map((x) => (x.id === b.id ? { ...x, title } : x)) })
+  }
+
   async function undoRemove() {
     if (!removed) return
     const { undo, wasPinned, folder, slot } = removed
@@ -275,7 +280,7 @@ export default function App() {
 
   const newTab = data.settings.openInNewTab
   const rowHeight = data.settings.density === 'compact' ? 28 : 34
-  const listProps = { pinned, onOpen: open('folder'), onTogglePin: togglePin, onRemove: (b: Bookmark) => void remove(b), rowHeight, newTab }
+  const listProps = { pinned, onOpen: open('folder'), onTogglePin: togglePin, onRemove: (b: Bookmark) => void remove(b), onRenameLink: (b: Bookmark, title: string) => void rename(b, title), rowHeight, newTab }
   const bookmarkFolders = (
     <FolderBrowser folders={folders} slots={slots} {...listProps} selectedId={openFolderId ?? folders[0]?.id ?? ''} onSelect={setOpenFolderId} onMove={(id, slot) => saveSlots(moveToSlot(slots, id, slot))} onCreate={(name, slot) => void addFolder(name, slot)} onRename={(f, name) => void editFolder(f, name)} onDelete={(f) => void dropFolder(f)} openCounts={openCounts} linkSort={data.settings.linkSort} onSort={(linkSort) => changeSettings({ linkSort })} onOpenAll={(f, links) => openAll(f, links)} />
   )

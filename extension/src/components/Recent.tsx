@@ -18,7 +18,7 @@ export function Recent({ newTab, index = 0 }: { newTab: boolean; index?: number 
   const [items, setItems] = useState<RecentItem[]>([])
 
   const refresh = useCallback(async () => {
-    setItems(isExtension ? await loadRecent(3) : demoRecent().slice(0, 3))
+    setItems(isExtension ? await loadRecent(60) : demoRecent())
   }, [])
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function Recent({ newTab, index = 0 }: { newTab: boolean; index?: number 
       ) : items.length === 0 ? (
         <p className="text-sm text-muted">{access === null ? '' : 'Nothing recent yet.'}</p>
       ) : (
-        <ul className="-mx-2">
+        <ul className="-mx-2 max-h-[7.5rem] overflow-y-auto overscroll-contain">
           {items.map((item) => (
             <li key={item.id}>
               <a

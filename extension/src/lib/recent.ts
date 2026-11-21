@@ -38,12 +38,12 @@ export async function requestRecentAccess(): Promise<boolean> {
 }
 
 export async function loadRecent(limit = 5): Promise<RecentItem[]> {
-  const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 12 })
+  const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 25 })
   const closed: RecentItem[] = sessions.flatMap((s) => {
     const tab = s.tab ?? s.window?.tabs?.[0]
     return tab?.url ? [{ id: `c-${tab.sessionId ?? s.lastModified}`, title: tab.title || tab.url, url: tab.url, ts: s.lastModified * 1000, kind: 'closed' as const, sessionId: tab.sessionId ?? s.window?.sessionId }] : []
   })
-  const history = await chrome.history.search({ text: '', maxResults: 40, startTime: Date.now() - 3 * 86_400_000 })
+  const history = await chrome.history.search({ text: '', maxResults: 150, startTime: Date.now() - 14 * 86_400_000 })
   const visited: RecentItem[] = history.map((h) => ({ id: `v-${h.id}`, title: h.title || h.url || '', url: h.url ?? '', ts: h.lastVisitTime ?? 0, kind: 'visited' as const }))
   return mergeRecent(closed, visited, limit)
 }

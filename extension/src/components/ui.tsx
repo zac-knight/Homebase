@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useId, useRef, useState } from 'react'
 import { faviconUrl } from '../lib/platform'
 import type { Bookmark } from '../lib/types'
 import { domainOf } from '../lib/urls'
@@ -108,9 +108,39 @@ export function Card({ title, children, aside }: { title: string; children: Reac
   )
 }
 
-export function BookmarkRow({ bookmark, pinned, onOpen, onTogglePin, onRemove, height = 34, style, newTab = false, animateIn = false, badge }: { bookmark: Bookmark; pinned: boolean; onOpen: (b: Bookmark) => void; onTogglePin: (b: Bookmark) => void; onRemove: (b: Bookmark) => void; height?: number; style?: React.CSSProperties; newTab?: boolean; /** Slide in with the folder's other links, in order. */ animateIn?: boolean; /** A small tag after the title, such as how often it is opened. */ badge?: string }) {
+export function BookmarkRow({ bookmark, pinned, onOpen, onTogglePin, onRemove, onRename, height = 34, style, newTab = false, animateIn = false, badge }: { bookmark: Bookmark; pinned: boolean; onOpen: (b: Bookmark) => void; onTogglePin: (b: Bookmark) => void; onRemove: (b: Bookmark) => void; onRename?: (b: Bookmark, title: string) => void; height?: number; style?: React.CSSProperties; newTab?: boolean; /** Slide in with the folder's other links, in order. */ animateIn?: boolean; /** A small tag after the title, such as how often it is opened. */ badge?: string }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(bookmark.title)
+  const done = useRef(false)
+  const finish = (save: boolean) => {
+    if (done.current) return
+    done.current = true
+    const title = draft.trim()
+    if (save && title && title !== bookmark.title) onRename?.(bookmark, title)
+    setEditing(false)
+  }
   return (
     <li className={`group flex items-center gap-0.5 ${animateIn ? 'row-in' : ''}`} style={{ height, ...style }}>
+      {editing ? (
+        <div className="flex h-full min-w-0 flex-1 items-center gap-2.5 px-2">
+          <Favicon url={bookmark.url} />
+          <input
+            autoFocus
+            aria-label="Bookmark name"
+            value={draft}
+            maxLength={200}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') finish(true)
+              else if (e.key === 'Escape') finish(false)
+            }}
+            onBlur={() => finish(true)}
+            className="h-7 min-w-0 flex-1 rounded-md border border-accent bg-card px-2 text-sm outline-none"
+          />
+        </div>
+      ) : (
       <a
         href={bookmark.url}
         {...(newTab ? { target: '_blank', rel: 'noopener' } : {})}
@@ -122,21 +152,32 @@ export function BookmarkRow({ bookmark, pinned, onOpen, onTogglePin, onRemove, h
         <Favicon url={bookmark.url} />
         <span className="min-w-0 flex-1 truncate">{bookmark.title}</span>
       </a>
+      )}
       {badge && <span className="mr-1 shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] text-ink tabular-nums">{badge}</span>}
       <button
         type="button"
         aria-pressed={pinned}
         aria-label={`${pinned ? 'Unpin' : 'Pin'} ${bookmark.title}`}
         onClick={() => onTogglePin(bookmark)}
-        className={`size-7 shrink-0 place-items-center rounded-md hover:bg-hover ${pinned ? 'star-on grid text-accent' : 'hidden text-muted group-focus-within:grid group-hover:grid'}`}
+        className={`grid size-7 shrink-0 place-items-center rounded-md hover:bg-hover ${pinned ? 'star-on text-accent' : 'invisible text-muted group-focus-within:visible group-hover:visible'}`}
       >
         <Icon name="star" filled={pinned} className="size-3.5" />
       </button>
+      {onRename && (
+        <button
+          type="button"
+          aria-label={`Rename ${bookmark.title}`}
+          onClick={() => { done.current = false; setDraft(bookmark.title); setEditing(true) }}
+          className="invisible grid size-7 shrink-0 place-items-center rounded-md text-muted group-focus-within:visible group-hover:visible hover:bg-hover"
+        >
+          <Icon name="edit" className="size-3.5" />
+        </button>
+      )}
       <button
         type="button"
         aria-label={`Remove ${bookmark.title}`}
         onClick={() => onRemove(bookmark)}
-        className="hidden size-7 shrink-0 place-items-center rounded-md text-muted group-focus-within:grid group-hover:grid hover:bg-hover hover:text-danger"
+        className="invisible grid size-7 shrink-0 place-items-center rounded-md text-muted group-focus-within:visible group-hover:visible hover:bg-hover hover:text-danger"
       >
         <Icon name="trash" className="size-3.5" />
       </button>

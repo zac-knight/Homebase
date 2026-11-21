@@ -60,9 +60,11 @@ export async function loadBookmarks(): Promise<Bookmark[]> {
     const removed = new Set(await kv.get<string[]>('demoRemoved', []))
     const gone = new Set(await kv.get<string[]>('demoFoldersGone', []))
     const names = await kv.get<Record<string, string>>('demoFolderNames', {})
+    const titles = await kv.get<Record<string, string>>('demoBookmarkTitles', {})
     return demoLibrary()
       .filter((b) => !removed.has(b.id) && !gone.has(b.folderId))
       .map((b) => (names[b.folderId] ? { ...b, folderName: names[b.folderId] } : b))
+      .map((b) => (titles[b.id] ? { ...b, title: titles[b.id] } : b))
   }
   const [root] = await chrome.bookmarks.getTree()
   const out: Bookmark[] = []
@@ -86,6 +88,15 @@ export async function removeBookmark(bookmark: Bookmark): Promise<() => Promise<
   const [node] = await chrome.bookmarks.get(bookmark.id)
   await chrome.bookmarks.remove(bookmark.id)
   return async () => (await chrome.bookmarks.create({ parentId: node.parentId, index: node.index, title: node.title, url: node.url })).id
+}
+
+/** Renames a bookmark in the browser (the page it points to is unchanged). */
+export async function renameBookmark(bookmark: Bookmark, title: string): Promise<void> {
+  if (!isExtension) {
+    await kv.set('demoBookmarkTitles', { ...(await kv.get<Record<string, string>>('demoBookmarkTitles', {})), [bookmark.id]: title })
+    return
+  }
+  await chrome.bookmarks.update(bookmark.id, { title })
 }
 
 // ---- folders -----------------------------------------------------------------------------
