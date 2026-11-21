@@ -184,7 +184,7 @@ test('the scratchpad saves as you type and is there next time', async ({ page })
 
 test('recent tabs are listed and can be reopened', async ({ page }) => {
   const recent = page.getByRole('region', { name: 'Pick up where you left off' })
-  await expect(recent.getByRole('link')).toHaveCount(3)
+  await expect(recent.getByRole('link')).toHaveCount(4) // the four entries in demoRecent()
   await expect(recent.getByRole('link').first()).toContainText('Closed')
 })
 
