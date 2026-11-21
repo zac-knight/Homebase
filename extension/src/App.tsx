@@ -2,24 +2,26 @@ import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { type Folder, FavouritesRow, FolderBrowser } from './components/Home'
 import { SearchPalette } from './components/SearchPalette'
 import { Icon, type IconName, Toast } from './components/ui'
+import { Note } from './components/Note'
+import { Recent } from './components/Recent'
+import { WeatherChip } from './components/Weather'
 import { Waves } from './components/Waves'
 import { getAuth } from './lib/api'
 import { withTransition } from './lib/effects'
-import { loadBookmarks, onBookmarksChanged, removeBookmark } from './lib/platform'
+import { type FolderInfo, createFolder, deleteFolders, isRootFolder, loadBookmarks, loadFolders, onBookmarksChanged, openAllInGroup, removeBookmark, renameFolder } from './lib/platform'
 import { buildIndex } from './lib/search'
-import { getEvents, getFavourites, getFolderOrder, getSettings, getTasks, logEvent, saveSettings, setFavourites, setFolderOrder, setTasks } from './lib/store'
+import { assignSlots, moveToSlot } from './lib/slots'
+import { getEvents, getFavourites, getFolderOrder, getFolderSlots, getSettings, logEvent, saveSettings, setFavourites, setFolderSlots } from './lib/store'
 import { applyAppearance } from './lib/theme'
-import { DEFAULT_SETTINGS, type Bookmark, type Settings as SettingsType, type Task, type UsageEvent } from './lib/types'
+import { DEFAULT_SETTINGS, type Bookmark, type Settings as SettingsType, type UsageEvent } from './lib/types'
 
 // Charts and settings are loaded on demand so the new tab page itself stays small and opens fast.
 const Insights = lazy(() => import('./components/Insights').then((m) => ({ default: m.Insights })))
-const Tasks = lazy(() => import('./components/Tasks').then((m) => ({ default: m.Tasks })))
 const Settings = lazy(() => import('./components/Settings').then((m) => ({ default: m.Settings })))
 
-type View = 'home' | 'tasks' | 'insights' | 'settings'
+type View = 'home' | 'insights' | 'settings'
 const VIEWS: { id: View; label: string; icon: IconName }[] = [
   { id: 'home', label: 'Home', icon: 'home' },
-  { id: 'tasks', label: 'Tasks', icon: 'check' },
   { id: 'insights', label: 'Insights', icon: 'chart' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ]
@@ -30,11 +32,17 @@ interface Data {
   settings: SettingsType
   favourites: string[]
   folderOrder: string[]
-  tasks: Task[]
+  folderList: FolderInfo[]
+  folderSlots: Record<string, number>
   signedIn: boolean
 }
 
 const viewFromHash = (): View => (VIEWS.find((v) => `#${v.id}` === location.hash)?.id ?? 'home')
+
+/** A small sun, sunset or moon to match the hour. */
+function timeGlyph(hour: number): IconName {
+  return hour < 5 || hour >= 21 ? 'moon' : hour >= 18 ? 'sunset' : 'sun'
+}
 
 function greeting(hour: number): string {
   return hour < 5 ? 'Still up' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
@@ -81,19 +89,20 @@ function Nav({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }
 }
 
 async function loadAll(): Promise<Data> {
-  const [bookmarks, events, settings, favourites, folderOrder, tasks, auth] = await Promise.all([loadBookmarks(), getEvents(), getSettings(), getFavourites(), getFolderOrder(), getTasks(), getAuth()])
-  return { bookmarks, events, settings, favourites, folderOrder, tasks, signedIn: settings.syncEnabled && !!auth }
+  const [bookmarks, events, settings, favourites, folderOrder, folderList, folderSlots, auth] = await Promise.all([loadBookmarks(), getEvents(), getSettings(), getFavourites(), getFolderOrder(), loadFolders(), getFolderSlots(), getAuth()])
+  return { bookmarks, events, settings, favourites, folderOrder, folderList, folderSlots, signedIn: settings.syncEnabled && !!auth }
 }
 
 export default function App() {
   const [data, setData] = useState<Data | null>(null)
   const [view, setView] = useState<View>(viewFromHash)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [seed, setSeed] = useState('')
   const [now] = useState(() => new Date())
   const [clock, setClock] = useState(() => new Date())
-  const [removed, setRemoved] = useState<{ title: string; wasPinned: string | null; undo: () => Promise<string> } | null>(null)
+  const [removed, setRemoved] = useState<{ title: string; wasPinned: string | null; undo: () => Promise<string>; folder?: boolean; slot?: number } | null>(null)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)
-  const searchButton = useRef<HTMLButtonElement>(null)
+  const searchButton = useRef<HTMLInputElement>(null)
 
   const reload = useCallback(
     () =>
@@ -106,7 +115,7 @@ export default function App() {
 
   useEffect(() => {
     reload()
-    return onBookmarksChanged(() => void loadBookmarks().then((bookmarks) => setData((d) => d && { ...d, bookmarks })))
+    return onBookmarksChanged(() => void Promise.all([loadBookmarks(), loadFolders()]).then(([bookmarks, folderList]) => setData((d) => d && { ...d, bookmarks, folderList })))
   }, [reload])
 
   useEffect(() => {
@@ -136,17 +145,23 @@ export default function App() {
 
   const folders = useMemo<Folder[]>(() => {
     // Folders sharing a name are one card: Chrome can hold several (an imported "Bookmarks bar",
-    // say), and cards show only the name, so the copies would look identical.
+    // say), and cards show only the name, so the copies would look identical. Folders with no
+    // links yet are here too, so a new folder has a card straight away.
     const map = new Map<string, Folder>()
-    for (const b of bookmarks ?? []) {
-      const key = b.folderName.trim().toLowerCase()
-      const folder = map.get(key)
-      if (folder) folder.bookmarks.push(b)
-      else map.set(key, { id: b.folderId, name: b.folderName, bookmarks: [b] })
+    const add = (id: string, name: string, bookmark?: Bookmark) => {
+      const key = name.trim().toLowerCase()
+      const folder = map.get(key) ?? { id, ids: [], name, bookmarks: [], locked: isRootFolder(id) }
+      if (!folder.ids.includes(id)) folder.ids.push(id)
+      folder.locked ||= isRootFolder(id)
+      if (bookmark) folder.bookmarks.push(bookmark)
+      map.set(key, folder)
     }
+    for (const b of bookmarks ?? []) add(b.folderId, b.folderName, b)
+    for (const f of data?.folderList ?? []) add(f.id, f.name)
     const order = new Map((data?.folderOrder ?? []).map((id, i) => [id, i]))
     return [...map.values()].sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9) || a.name.localeCompare(b.name))
-  }, [bookmarks, data?.folderOrder])
+  }, [bookmarks, data?.folderList, data?.folderOrder])
+  const slots = useMemo(() => assignSlots(folders.map((f) => f.id), data?.folderSlots ?? {}), [folders, data?.folderSlots])
 
   const favourites = useMemo(() => {
     const byId = new Map((bookmarks ?? []).map((b) => [b.id, b]))
@@ -186,14 +201,55 @@ export default function App() {
 
   async function undoRemove() {
     if (!removed) return
-    const { undo, wasPinned } = removed
+    const { undo, wasPinned, folder, slot } = removed
     setRemoved(null)
     const newId = await undo()
+    if (folder) {
+      // A restored folder is a new folder to Chrome, so it is put back in the slot it left.
+      if (slot !== undefined && !Object.values(slots).includes(slot)) saveSlots({ ...slots, [newId]: slot })
+      await refreshFolders()
+      setOpenFolderId(newId)
+      return
+    }
     // Chrome gives the restored bookmark a new id, so a pin has to follow it.
     const favourites = wasPinned ? data!.favourites.map((id) => (id === wasPinned ? newId : id)) : data!.favourites
     if (wasPinned) await setFavourites(favourites)
     const bookmarks = await loadBookmarks()
     setData((d) => d && { ...d, bookmarks, favourites })
+  }
+
+  function openAll(folder: Folder, links: Bookmark[]) {
+    for (const b of links) void logEvent({ type: 'open', url: b.url, source: 'group' })
+    void openAllInGroup(links.map((b) => b.url), folder.name)
+  }
+
+  function saveSlots(next: Record<string, number>) {
+    setData((d) => d && { ...d, folderSlots: next })
+    void setFolderSlots(next)
+  }
+
+  async function refreshFolders() {
+    const [bookmarks, folderList] = await Promise.all([loadBookmarks(), loadFolders()])
+    setData((d) => d && { ...d, bookmarks, folderList })
+  }
+
+  async function addFolder(name: string, slot: number) {
+    const made = await createFolder(name)
+    saveSlots({ ...slots, [made.id]: slot })
+    setOpenFolderId(made.id)
+    await refreshFolders()
+  }
+
+  async function editFolder(folder: Folder, name: string) {
+    await renameFolder(folder.ids, name)
+    await refreshFolders()
+  }
+
+  async function dropFolder(folder: Folder) {
+    const undo = await deleteFolders(folder.ids)
+    setRemoved({ title: folder.name, wasPinned: null, undo, folder: true, slot: slots[folder.id] })
+    if (openFolderId === folder.id) setOpenFolderId(null)
+    await refreshFolders()
   }
 
   function changeSettings(patch: Partial<SettingsType>) {
@@ -220,17 +276,15 @@ export default function App() {
   const newTab = data.settings.openInNewTab
   const rowHeight = data.settings.density === 'compact' ? 28 : 34
   const listProps = { pinned, onOpen: open('folder'), onTogglePin: togglePin, onRemove: (b: Bookmark) => void remove(b), rowHeight, newTab }
-  const bookmarkFolders = folders.length ? (
-    <FolderBrowser folders={folders} {...listProps} selectedId={openFolderId ?? folders[0].id} onSelect={setOpenFolderId} onReorder={(ids) => { setData({ ...data, folderOrder: ids }); void setFolderOrder(ids) }} />
-  ) : (
-    <p className="text-center text-muted">No bookmarks yet. Save a page in Chrome and it will show up here.</p>
+  const bookmarkFolders = (
+    <FolderBrowser folders={folders} slots={slots} {...listProps} selectedId={openFolderId ?? folders[0]?.id ?? ''} onSelect={setOpenFolderId} onMove={(id, slot) => saveSlots(moveToSlot(slots, id, slot))} onCreate={(name, slot) => void addFolder(name, slot)} onRename={(f, name) => void editFolder(f, name)} onDelete={(f) => void dropFolder(f)} openCounts={openCounts} linkSort={data.settings.linkSort} onSort={(linkSort) => changeSettings({ linkSort })} onOpenAll={(f, links) => openAll(f, links)} />
   )
 
   return (
     <div className="min-h-screen lg:pl-[104px]">
       {data.settings.waves && <Waves />}
       {/* A rail down the left edge on wide screens; a floating dock along the bottom on small ones. */}
-      <header className="surface fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-line bg-card p-1.5 shadow-soft lg:top-4 lg:bottom-4 lg:left-4 lg:translate-x-0 lg:flex-col lg:p-2">
+      <header className="rail-in surface fixed bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-line bg-card p-1.5 shadow-soft lg:top-4 lg:bottom-4 lg:left-4 lg:translate-x-0 lg:flex-col lg:p-2">
         <span aria-hidden="true" className="logo-mark hidden size-11 place-items-center rounded-xl bg-accent font-display text-xl text-accent-ink lg:grid">H</span>
         <span className="sr-only">Homebase</span>
         <span aria-hidden="true" className="hidden h-px w-8 bg-line lg:block" />
@@ -240,37 +294,64 @@ export default function App() {
       {/* The home view is exactly one screen tall on wide windows; the folder panel scrolls inside itself if it must. */}
       <main className={`mx-auto max-w-[1400px] px-5 pt-6 pb-28 sm:px-8 lg:pt-8 ${view === 'home' ? 'lg:flex lg:h-dvh lg:flex-col lg:pb-8' : 'lg:pb-16'}`}>
         {view === 'home' && (
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-7 lg:min-h-0 lg:flex-1">
-            <div className="flex flex-col items-center gap-2 pt-2 text-center">
-              <div className="flex items-center gap-3">
-                <p className="rise rounded-full border border-line px-3 py-1 text-xs font-medium tracking-wide text-muted uppercase">{now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-                {data.settings.showClock && <p className="rise text-sm text-muted tabular-nums">{clock.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</p>}
+          <div className="mx-auto flex w-full max-w-[88rem] flex-col gap-7 lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:grid-rows-[minmax(0,1fr)] lg:gap-14 lg:pl-10 xl:pl-16">
+            {/* Search and favourites on the left; folders, and the links of the open one, on the right. */}
+            <div className="flex flex-col gap-6 lg:min-h-0 lg:justify-center lg:gap-8 lg:overflow-y-auto lg:pr-1">
+            <div className="relative isolate flex flex-col items-center gap-2 pt-2 text-center lg:items-start lg:pt-0 lg:text-left">
+              {/* The hour as a big, quiet shape behind the greeting: still, thin and low contrast. */}
+              <div aria-hidden="true" style={{ '--i': 1 } as React.CSSProperties} className="enter pointer-events-none absolute -top-28 right-2 -z-10 hidden lg:block xl:right-10">
+                <div className="absolute -inset-20 rounded-full" style={{ background: 'radial-gradient(closest-side, color-mix(in oklch, var(--accent) 20%, transparent), transparent)' }} />
+                <Icon name={timeGlyph(now.getHours())} className="relative size-80 text-accent opacity-40 [stroke-width:1.1px] [&_path]:[vector-effect:non-scaling-stroke]" />
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+                <p className="enter inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 text-xs font-medium tracking-wide text-muted uppercase">
+                  <Icon name={timeGlyph(now.getHours())} className="size-3.5 text-accent" />
+                  {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                <WeatherChip settings={data.settings} />
+                {data.settings.showClock && <p className="enter text-sm text-muted tabular-nums">{clock.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</p>}
               </div>
               {/* The page always has one h1; it is visually hidden when the greeting is switched off. */}
-              <h1 className={data.settings.showGreeting ? 'title-gradient title-in pb-1 font-display text-5xl tracking-tight sm:text-6xl' : 'sr-only'}>
+              <h1 style={{ '--i': 1 } as React.CSSProperties} className={data.settings.showGreeting ? 'title-gradient title-in pb-1 font-display text-5xl tracking-tight sm:text-6xl lg:text-6xl lg:leading-[1.05] xl:text-7xl' : 'sr-only'}>
                 {data.settings.showGreeting ? `${greeting(now.getHours())}${data.settings.name.trim() ? `, ${data.settings.name.trim()}` : ''}` : 'Homebase'}
               </h1>
-              <p className="rise text-[15px] text-muted" style={{ '--i': 1 } as React.CSSProperties}>
+              <p className="enter text-[15px] text-muted" style={{ '--i': 2 } as React.CSSProperties}>
                 {data.bookmarks.length.toLocaleString()} saved links in {folders.length} {folders.length === 1 ? 'folder' : 'folders'}
                 {favourites.length > 0 && `, ${favourites.length} pinned`}
               </p>
             </div>
-            <button ref={searchButton} type="button" onClick={() => setPaletteOpen(true)} style={{ '--i': 2 } as React.CSSProperties} className="surface glow-ring glow-hover rise mx-auto flex h-14 w-full max-w-2xl shrink-0 items-center gap-3 rounded-2xl border border-line bg-card px-5 text-left text-muted shadow-soft">
+            {/* A real input, focused on load: that is what makes Chrome leave the address bar alone
+                on a new tab. Typing here opens the palette with the text carried over. */}
+            <label style={{ '--i': 3 } as React.CSSProperties} className="surface glow-ring glow-hover enter mx-auto flex h-14 w-full max-w-2xl shrink-0 lg:mx-0 lg:max-w-xl cursor-text items-center gap-3 rounded-2xl border border-line bg-card px-5 text-muted shadow-soft">
               <Icon name="search" />
-              <span className="flex-1 text-[15px]">Search {data.bookmarks.length.toLocaleString()} bookmarks</span>
+              <input
+                ref={searchButton}
+                autoFocus
+                type="text"
+                value=""
+                aria-label={`Search ${data.bookmarks.length.toLocaleString()} bookmarks or the web`}
+                placeholder="Search bookmarks or the web"
+                onChange={(e) => {
+                  // "/" is the shortcut that opens search, not text to search for.
+                  setSeed(e.target.value === '/' ? '' : e.target.value)
+                  setPaletteOpen(true)
+                }}
+                onClick={() => setPaletteOpen(true)}
+                className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted"
+              />
               <kbd className="rounded border border-line px-1.5 py-0.5 text-[11px]">{navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl K'}</kbd>
-            </button>
+            </label>
             {data.settings.showFavourites && <FavouritesRow favourites={favourites} onOpen={open('favourites')} onUnpin={togglePin} onReorder={(ids) => { setData({ ...data, favourites: ids }); void setFavourites(ids) }} newTab={newTab} />}
+            {(data.settings.showRecent || data.settings.showNote) && (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {data.settings.showRecent && <Recent newTab={newTab} index={5} />}
+                {data.settings.showNote && <Note index={6} />}
+              </div>
+            )}
+            </div>
             {bookmarkFolders}
           </div>
         )}
         <Suspense fallback={null}>
-        {view === 'tasks' && (
-          <>
-            <PageHeader title="Tasks" note="What needs doing, soonest first. Kept on this device." />
-            <Tasks tasks={data.tasks} onChange={(tasks) => { setData({ ...data, tasks }); void setTasks(tasks) }} />
-          </>
-        )}
         {view === 'insights' && (
           <>
             <PageHeader title="Insights" note="How you use what you have saved." />
@@ -287,7 +368,7 @@ export default function App() {
       </main>
 
       {removed && <Toast message={`Removed “${removed.title}”`} actionLabel="Undo" onAction={() => void undoRemove()} onDismiss={() => setRemoved(null)} />}
-      {paletteOpen && <SearchPalette index={index} openCounts={openCounts} serverEnabled={data.signedIn} onClose={() => { setPaletteOpen(false); setTimeout(() => searchButton.current?.focus()) }} />}
+      {paletteOpen && <SearchPalette initialQuery={seed} index={index} openCounts={openCounts} serverEnabled={data.signedIn} onClose={() => { setPaletteOpen(false); setSeed(''); setTimeout(() => searchButton.current?.focus()) }} />}
     </div>
   )
 }

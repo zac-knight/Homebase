@@ -1,7 +1,12 @@
 import AxeBuilder from '@axe-core/playwright'
 import { type Page, expect, test } from '@playwright/test'
+import { PALETTES } from '../src/lib/themes'
+
+// The weather comes from a real service; every test sees the same fixed reading instead.
+const WEATHER = { current: { temperature_2m: 24.4, apparent_temperature: 26, weather_code: 1, is_day: 1 }, daily: { temperature_2m_max: [27.2], temperature_2m_min: [18.1] } }
 
 test.beforeEach(async ({ page }) => {
+  await page.route('https://api.open-meteo.com/**', (route) => route.fulfill({ json: WEATHER }))
   await page.goto('/newtab.html')
   await expect(page.getByRole('heading', { name: 'Folders' })).toBeVisible()
 })
@@ -42,25 +47,6 @@ test('same-named folders are shown once', async ({ page }) => {
   await expect(page.locator('[data-folder-name]', { hasText: 'Bookmarks bar' })).toHaveCount(1)
 })
 
-test('tasks can be added, finished and cleared', async ({ page }) => {
-  await page.getByRole('button', { name: 'Tasks', exact: true }).click()
-  await page.getByLabel('New task').fill('Read week 3 notes')
-  await page.keyboard.press('Enter')
-  await page.getByLabel('Due date').fill('2020-01-01')
-  await page.getByLabel('New task').fill('Submit report')
-  await page.keyboard.press('Enter')
-  // Dated tasks come first, and an old date reads as overdue.
-  await expect(page.getByRole('listitem').first()).toContainText('Submit report')
-  await expect(page.getByRole('listitem').first()).toContainText('overdue')
-  await page.getByRole('checkbox', { name: 'Mark “Submit report” done' }).click()
-  await expect(page.getByRole('checkbox', { name: 'Mark “Submit report” not done' })).toBeVisible()
-  await page.reload()
-  await expect(page.getByRole('checkbox', { name: 'Mark “Read week 3 notes” done' })).toBeVisible()
-  await expect(page.getByRole('checkbox', { name: 'Mark “Submit report” not done' })).toBeVisible()
-  await page.getByRole('button', { name: 'Clear done' }).click()
-  await expect(page.getByText('Submit report')).toHaveCount(0)
-})
-
 test('there is no Right now panel', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Right now' })).toHaveCount(0)
 })
@@ -69,12 +55,19 @@ test('the Organise tab is gone', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Organise', exact: true })).toHaveCount(0)
 })
 
+test('there is no Tasks page any more', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'Tasks', exact: true })).toHaveCount(0)
+})
+
+const palette = (page: Page) => page.getByRole('combobox', { name: 'Search bookmarks or the web' })
+const results = (page: Page) => page.getByRole('listbox', { name: 'Results' }).getByRole('option')
+
 test('search palette works from the keyboard alone', async ({ page }) => {
   await page.keyboard.press('/')
-  const input = page.getByRole('combobox', { name: 'Search bookmarks' })
+  const input = palette(page)
   await expect(input).toBeFocused()
   await input.fill('postgres index')
-  const options = page.getByRole('option')
+  const options = results(page)
   await expect(options.first()).toContainText('PostgreSQL documentation: Indexes')
   await expect(options.first()).toHaveAttribute('aria-selected', 'true')
   await input.fill('git')
@@ -82,7 +75,7 @@ test('search palette works from the keyboard alone', async ({ page }) => {
   await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
-  await expect(page.getByRole('button', { name: /Search \d+ bookmarks/ })).toBeFocused()
+  await expect(page.getByRole('textbox', { name: /Search \d+ bookmarks/ })).toBeFocused()
   await page.keyboard.press('ControlOrMeta+k')
   await expect(page.getByRole('dialog')).toBeVisible()
 })
@@ -90,13 +83,27 @@ test('search palette works from the keyboard alone', async ({ page }) => {
 test('opening a search result navigates and is logged', async ({ page }) => {
   await page.route('https://regex101.com/**', (route) => route.fulfill({ body: '<title>stub</title>', contentType: 'text/html' }))
   await page.keyboard.press('/')
-  await page.getByRole('combobox').fill('regex101')
+  await palette(page).fill('regex101')
   await page.keyboard.press('Enter')
   await page.waitForURL('https://regex101.com/')
   await page.goto('/newtab.html')
   const events = await page.evaluate(() => JSON.parse(localStorage.getItem('homebase:events') ?? '[]'))
   expect(events.some((e: { type: string; url?: string; source?: string }) => e.type === 'open' && e.url === 'https://regex101.com/' && e.source === 'search')).toBe(true)
   expect(events.some((e: { type: string; query?: string }) => e.type === 'search' && e.query === 'regex101')).toBe(true)
+})
+
+test('the search bar can search the web as well as bookmarks', async ({ page }) => {
+  await page.getByRole('textbox', { name: /Search \d+ bookmarks or the web/ }).click()
+  await palette(page).fill('best pizza near me')
+  await expect(results(page)).toHaveText(['Search the web for best pizza near me'])
+  await palette(page).fill('github.com/foo')
+  await expect(results(page).first()).toContainText('Go to https://github.com/foo')
+})
+
+test('the search bar is focused on load and typing in it opens search with that text', async ({ page }) => {
+  await expect(page.getByRole('textbox', { name: /Search \d+ bookmarks or the web/ })).toBeFocused()
+  await page.keyboard.type('pizza')
+  await expect(palette(page)).toHaveValue('pizza')
 })
 
 test('pinning adds a favourite that survives a reload', async ({ page }) => {
@@ -111,7 +118,7 @@ test('pinning adds a favourite that survives a reload', async ({ page }) => {
   await expect(favourites.getByRole('link', { name: 'Excalidraw' })).toHaveCount(0)
 })
 
-test('folder tabs can be reordered with the keyboard', async ({ page }) => {
+test('folders can be moved between slots with the keyboard', async ({ page }) => {
   const names = () => page.locator('[data-folder-name]').allTextContents()
   const before = await names()
   const handle = page.getByRole('region', { name: 'Folders' }).getByRole('button', { name: new RegExp(`^${before[0]}\\b`) })
@@ -119,23 +126,116 @@ test('folder tabs can be reordered with the keyboard', async ({ page }) => {
   // dnd-kit attaches its key listeners a tick after pick-up, so pace the keys like a person would.
   await page.keyboard.press('Space', { delay: 50 })
   await expect(handle).toHaveAttribute('aria-pressed', 'true')
+  await page.waitForTimeout(250)
   await page.keyboard.press('ArrowRight', { delay: 50 })
-  // Drop only once the tab has visibly moved, however slow the machine is.
-  await expect.poll(() => handle.evaluate((el) => (el as HTMLElement).style.transform)).toContain('translate3d')
+  // Drop only once the neighbouring slot is lit as the target, however slow the machine is.
+  await expect(page.locator('li.slot.ring-accent')).toHaveCount(1)
   await page.keyboard.press('Space', { delay: 50 })
   await expect.poll(names).toEqual([before[1], before[0], ...before.slice(2)])
   await page.reload()
   await expect.poll(names).toEqual([before[1], before[0], ...before.slice(2)])
 })
 
-test('theme can be forced dark and insights render charts', async ({ page }) => {
+test('a folder can be created, renamed and deleted, and deleting can be undone', async ({ page }) => {
+  const names = () => page.locator('[data-folder-name]').allTextContents()
+  await page.getByRole('button', { name: 'New folder', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Name for the new folder' }).fill('Gaming')
+  await page.keyboard.press('Enter')
+  await expect.poll(names).toContain('Gaming')
+  // Clicking the name itself edits it.
+  await page.getByRole('button', { name: /^Folder name: Gaming/ }).click()
+  await page.getByRole('textbox', { name: 'Folder name' }).fill('Games')
+  await page.keyboard.press('Enter')
+  await expect.poll(names).toContain('Games')
+  await page.getByRole('button', { name: 'Delete Games' }).click()
+  await expect.poll(names).not.toContain('Games')
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect.poll(names).toContain('Games')
+  // A folder with links asks first.
+  await page.getByRole('region', { name: 'Folders' }).getByRole('button', { name: /^Cooking/ }).click()
+  await page.getByRole('button', { name: 'Delete Cooking' }).click()
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click()
+  await expect.poll(names).toContain('Cooking')
+})
+
+test('weather and the time at the chosen place show beside the date', async ({ page }) => {
+  const chip = page.getByLabel(/North Lakes: 24 degrees, Partly cloudy, high 27, low 18/)
+  await expect(chip).toBeVisible()
+  await expect(chip).toContainText('North Lakes')
+  // Off means off: no chip.
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('switch', { name: /^Weather/ }).click()
+  await page.getByRole('button', { name: 'Home', exact: true }).click()
+  await expect(page.getByLabel(/North Lakes: 24 degrees/)).toHaveCount(0)
+})
+
+test('the scratchpad saves as you type and is there next time', async ({ page }) => {
+  const note = page.getByRole('textbox', { name: 'Scratchpad' })
+  await note.fill('Email the supervisor about week 4')
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('textbox', { name: 'Scratchpad' })).toHaveValue('Email the supervisor about week 4')
+  // Typing a slash into it is just a slash, not the search shortcut.
+  await page.getByRole('textbox', { name: 'Scratchpad' }).press('End')
+  await page.keyboard.type(' and/or')
+  await expect(palette(page)).toHaveCount(0)
+})
+
+test('recent tabs are listed and can be reopened', async ({ page }) => {
+  const recent = page.getByRole('region', { name: 'Pick up where you left off' })
+  await expect(recent.getByRole('link')).toHaveCount(3)
+  await expect(recent.getByRole('link').first()).toContainText('Closed')
+})
+
+test('folder links can be sorted by most used, with the busiest tagged', async ({ page }) => {
+  await openFolder(page, 'Dev')
+  const panel = page.getByRole('region', { name: 'Dev', exact: true })
+  const titles = () => panel.locator('li a span.truncate').allTextContents()
+  const saved = await titles()
+  await panel.getByRole('combobox', { name: 'Sort links' }).selectOption('used')
+  expect(await titles()).not.toEqual(saved)
+  // The top three carry how many opens they have, and the most opened link comes first.
+  await expect(panel.getByText(/^\d+ opens?$/)).toHaveCount(3)
+  await expect(panel.locator('li').first()).toContainText(/\d+ opens/)
+  await panel.getByRole('combobox', { name: 'Sort links' }).selectOption('az')
+  const az = await titles()
+  expect(az).toEqual([...az].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })))
+})
+
+test('open all asks before opening a big folder', async ({ page }) => {
+  await page.evaluate(() => {
+    ;(window as unknown as { opened: string[] }).opened = []
+    window.open = ((url: string) => void (window as unknown as { opened: string[] }).opened.push(url)) as unknown as typeof window.open
+  })
+  await openFolder(page, 'Dev')
+  await page.getByRole('button', { name: /^Open all 10 links in Dev as a tab group/ }).click()
+  await expect(page.getByRole('alertdialog')).toContainText('Open 10 tabs')
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Open', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { opened: string[] }).opened.length)).toBe(10)
+  // A small folder opens straight away.
+  await openFolder(page, 'Cooking')
+  await page.getByRole('button', { name: /^Open all 4 links in Cooking/ }).click()
+  await expect.poll(() => page.evaluate(() => (window as unknown as { opened: string[] }).opened.length)).toBe(14)
+})
+
+test('theme can be forced dark and insights show what you use most and least', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('radio', { name: 'dark' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.getByRole('button', { name: 'Insights', exact: true }).click()
   await expect(page.getByRole('img', { name: /opened per day/ })).toBeVisible()
   await expect(page.locator('.recharts-bar-rectangle').first()).toBeVisible()
-  await expect(page.getByText('Never opened')).toBeVisible()
+  await expect(page.getByText('Never opened', { exact: true })).toBeVisible()
+  // Most used ranks by the chosen range; least used lists what was never opened.
+  const most = page.getByRole('region', { name: 'Most used' })
+  await expect(most.getByRole('link').first()).toContainText('opens')
+  await most.getByRole('radio', { name: '7 days' }).click()
+  await expect(most.getByRole('radio', { name: '7 days' })).toBeChecked()
+  expect(await most.getByRole('link').count()).toBeGreaterThan(0)
+  const least = page.getByRole('region', { name: 'Least used' })
+  await expect(least).toContainText('never opened')
+  await expect(least.getByRole('link').first()).toContainText('saved')
 })
 
 test('follows the system colour scheme by default', async ({ browser }) => {
@@ -150,7 +250,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`no accessibility violations on any view (${scheme})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' })
     await page.reload()
-    for (const view of ['Home', 'Tasks', 'Insights', 'Settings']) {
+    for (const view of ['Home', 'Insights', 'Settings']) {
       await page.getByRole('button', { name: view, exact: true }).click()
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       const { violations } = await new AxeBuilder({ page }).analyze()
@@ -158,7 +258,7 @@ for (const scheme of ['light', 'dark'] as const) {
     }
     await page.getByRole('button', { name: 'Home', exact: true }).click()
     await page.keyboard.press('/')
-    await page.getByRole('combobox').fill('sql')
+    await page.getByRole('combobox', { name: 'Search bookmarks or the web' }).fill('sql')
     const { violations } = await new AxeBuilder({ page }).analyze()
     expect(violations.map((v) => `palette: ${v.id} ${v.nodes[0]?.html.slice(0, 120)}`)).toEqual([])
   })
@@ -166,14 +266,14 @@ for (const scheme of ['light', 'dark'] as const) {
 
 test('stays fast with 5000 bookmarks', async ({ page }) => {
   await page.goto('/newtab.html?n=5000')
-  await expect(page.getByRole('button', { name: 'Search 5,000 bookmarks' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Search 5,000 bookmarks' })).toBeVisible()
   // Virtualised folders keep the DOM small no matter how many bookmarks there are.
   expect(await page.locator('li a[href]').count()).toBeLessThan(2500)
   await page.keyboard.press('/')
-  const input = page.getByRole('combobox')
+  const input = page.getByRole('combobox', { name: 'Search bookmarks or the web' })
   const start = Date.now()
   await input.fill('4321')
-  await expect(page.getByRole('option').first()).toContainText('4321')
+  await expect(page.getByRole('listbox', { name: 'Results' }).getByRole('option').first()).toContainText('4321')
   expect(Date.now() - start).toBeLessThan(1000)
 })
 
@@ -186,7 +286,7 @@ test('a bookmark can be removed and the removal undone', async ({ page }) => {
   await page.getByRole('listitem').filter({ has: page.getByRole('link', { name: 'Excalidraw', exact: true }) }).first().hover()
   await page.getByRole('button', { name: 'Remove Excalidraw' }).click()
   await expect(link).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Search 57 bookmarks' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Search 57 bookmarks' })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Folders' })).toBeVisible()
   await expect(link).toHaveCount(0)
@@ -198,7 +298,7 @@ test('a bookmark can be removed and the removal undone', async ({ page }) => {
   await expect(page.getByRole('status').filter({ hasText: 'Removed “regex101”' })).toBeVisible()
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(page.getByRole('link', { name: 'regex101', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Search 57 bookmarks' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Search 57 bookmarks' })).toBeVisible()
 })
 
 test('appearance settings change the page and survive a reload', async ({ page }) => {
@@ -258,7 +358,7 @@ test('a background picture can be chosen and is kept on the device', async ({ pa
 })
 
 // Every colour theme, in both modes and on the most demanding backgrounds, must keep readable contrast.
-for (const palette of ['paper', 'ocean', 'forest', 'rose', 'sunset', 'lavender', 'neon', 'graphite', 'midnight', 'ember', 'matcha', 'sakura', 'arctic', 'mocha', 'cosmos', 'citrus', 'black']) {
+for (const palette of PALETTES.map((p) => p.id)) {
   test(`theme ${palette} passes the accessibility audit`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     for (const theme of ['light', 'dark']) {

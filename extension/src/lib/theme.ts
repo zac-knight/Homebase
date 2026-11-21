@@ -33,7 +33,7 @@ export function applyAppearance(next?: Settings): void {
   const a = next ?? stored()
   const mode = a.theme === 'system' ? (media.matches ? 'dark' : 'light') : a.theme
   const root = document.documentElement
-  Object.assign(root.dataset, { theme: mode, bg: a.background, cards: a.cardStyle, radius: a.radius, font: a.font, motion: a.motion })
+  Object.assign(root.dataset, { theme: mode, palette: a.palette, bg: a.background, cards: a.cardStyle, radius: a.radius, font: a.font, motion: a.motion })
   const tokens = resolveTokens(a.palette, mode, a.accent)
   const vars: Record<string, string> = {
     '--bg': tokens.bg, '--card': tokens.card, '--ink': tokens.ink, '--muted': tokens.muted, '--line': tokens.line,

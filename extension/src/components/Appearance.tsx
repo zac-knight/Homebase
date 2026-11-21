@@ -162,7 +162,7 @@ export function Appearance({ settings, onChange }: { settings: Settings; onChang
 
       <Card title="Look and feel">
         <div className="divide-y divide-line">
-          <Choice label="Background" value={settings.background} onChange={(background) => (background === 'image' && !hasImage ? file.current?.click() : onChange({ background }))} options={[['plain', 'Plain'], ['glow', 'Glow'], ['aurora', 'Aurora'], ['gradient', 'Gradient'], ['dots', 'Dots'], ['grid', 'Grid'], ['stars', 'Stars'], ['image', 'Picture']]} />
+          <Choice label="Background" value={settings.background} onChange={(background) => (background === 'image' && !hasImage ? file.current?.click() : onChange({ background }))} options={[['plain', 'Plain'], ['glow', 'Glow'], ['aurora', 'Aurora'], ['gradient', 'Gradient'], ['dots', 'Dots'], ['grid', 'Grid'], ['stars', 'Stars'], ['psp', 'PSP waves'], ['beach', 'Beach'], ['network', 'Network'], ['image', 'Picture']]} />
           {(settings.background === 'image' || hasImage) && (
             <div className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
               <span className="text-muted">Your picture is stored on this device only and is never synced.</span>
@@ -202,6 +202,21 @@ export function Appearance({ settings, onChange }: { settings: Settings; onChang
           <Toggle label="Animated waves" description="Waves drift along the bottom of the page. They stay still when motion is off." checked={settings.waves} onChange={(waves) => onChange({ waves })} />
           <Toggle label="Open links in a new tab" description="Keeps this page open behind the site you chose." checked={settings.openInNewTab} onChange={(openInNewTab) => onChange({ openInNewTab })} />
           <Toggle label="Show favourites row" checked={settings.showFavourites} onChange={(showFavourites) => onChange({ showFavourites })} />
+          <Toggle label="Pick up where you left off" description="Recently closed tabs and pages you visited lately, with a one-click reopen. Chrome asks permission the first time." checked={settings.showRecent} onChange={(showRecent) => onChange({ showRecent })} />
+          <Toggle label="Scratchpad" description="A note on the home page that is saved as you type, on this device." checked={settings.showNote} onChange={(showNote) => onChange({ showNote })} />
+          <Toggle label="Weather" description="Current weather and the time at one place. Asks open-meteo.com using only that place’s coordinates; off means no request is made." checked={settings.weather} onChange={(weather) => onChange({ weather })} />
+          {settings.weather && (
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2.5">
+              <label htmlFor="weather-place" className="text-sm font-medium">
+                Place
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input id="weather-place" className="h-9 w-40 rounded-lg border border-line bg-bg px-3 text-sm" maxLength={40} value={settings.weatherPlace} onChange={(e) => onChange({ weatherPlace: e.target.value })} />
+                <input aria-label="Latitude" type="number" step="0.0001" className="h-9 w-28 rounded-lg border border-line bg-bg px-3 text-sm" value={settings.weatherLat} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && onChange({ weatherLat: e.target.valueAsNumber })} />
+                <input aria-label="Longitude" type="number" step="0.0001" className="h-9 w-28 rounded-lg border border-line bg-bg px-3 text-sm" value={settings.weatherLon} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && onChange({ weatherLon: e.target.valueAsNumber })} />
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </>

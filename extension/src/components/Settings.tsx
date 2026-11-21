@@ -18,6 +18,9 @@ const PERMISSIONS = [
   ['Alarms', 'Always on', 'To run sync and link checks in the background when you have turned sync on.'],
   ['Read pages you bookmark', 'Only if you turn on page text capture', 'To copy the main text of a page at the moment you bookmark it, so search can work on meaning.'],
   ['Browsing history', 'Only if you turn it on', 'To tell which saved pages you have actually visited. History stays on this device and is never synced.'],
+  ['Recent tabs', 'Only if you turn on “Pick up where you left off”', 'To list tabs you closed recently so you can reopen them. Read on this device and never synced.'],
+  ['Tab groups', 'Always on', 'To open every link in a folder together as one named tab group when you ask. Nothing else about your tabs is read.'],
+  ['Weather', 'Only if you turn it on', 'The home page asks open-meteo.com for the weather at the place you pick. The only thing sent is that place’s coordinates, with no account and nothing about you.'],
   ['Identity', 'Only when you sign in with Google', 'To open Google’s sign-in window.'],
 ]
 

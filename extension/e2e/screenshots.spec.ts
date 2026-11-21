@@ -13,30 +13,15 @@ const library: { title: string }[] = JSON.parse(readFileSync(join(import.meta.di
 const idOf = (title: string) => `d${library.findIndex((b) => b.title === title)}`
 const FAVOURITES = ['Excalidraw', 'Hacker News', 'TypeScript Handbook', 'PostgreSQL documentation: Indexes', 'The Illustrated Transformer']
 
-const day = (offset: number) => {
-  const d = new Date(Date.now() + offset * 86_400_000)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-const TASKS = [
-  { text: 'Finish the indexing chapter and note three questions', done: false, due: day(0) },
-  { text: 'Send the draft report to the group', done: false, due: day(1) },
-  { text: 'Try the pgvector example from the docs', done: false, due: day(3) },
-  { text: 'Renew the library books', done: false, due: day(-1) },
-  { text: 'Tidy the reading list', done: false, due: null },
-  { text: 'Book train tickets', done: true, due: null },
-  { text: 'Read the Transformer article', done: true, due: null },
-].map((t, i) => ({ id: `t${i}`, createdAt: 1_700_000_000_000 + i, ...t }))
-
 /** Seeds what the page keeps in localStorage in demo mode, before it loads. */
 async function seed(page: Page, settings: Record<string, unknown> = {}) {
   const favourites = FAVOURITES.map(idOf)
   await page.addInitScript(
-    ({ favourites, settings, tasks }) => {
+    ({ favourites, settings }) => {
       localStorage.setItem('homebase:favourites', JSON.stringify(favourites))
       localStorage.setItem('homebase:settings', JSON.stringify(settings))
-      localStorage.setItem('homebase:tasks', JSON.stringify(tasks))
     },
-    { favourites, settings, tasks: TASKS },
+    { favourites, settings },
   )
 }
 
@@ -60,14 +45,14 @@ test.describe('README pictures', () => {
     })
   }
 
-  test('tasks', async ({ page }) => {
+  test('insights', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' })
     await seed(page)
-    await page.goto('/newtab.html#tasks')
-    await expect(page.getByRole('heading', { name: 'Tasks', level: 1 })).toBeVisible()
+    await page.goto('/newtab.html#insights')
+    await expect(page.getByRole('heading', { name: 'Insights', level: 1 })).toBeVisible()
     await page.mouse.move(0, 0)
     await page.waitForTimeout(900)
-    await page.screenshot({ path: `${out}/tasks.png` })
+    await page.screenshot({ path: `${out}/insights.png` })
   })
 
   const looks: [string, Record<string, unknown>][] = [
@@ -104,13 +89,8 @@ test.describe('README pictures', () => {
     await page.keyboard.type('postgres index', { delay: 90 })
     await page.waitForTimeout(1500)
     await page.keyboard.press('Escape')
-    await page.getByRole('button', { name: 'Tasks', exact: true }).click()
-    await page.waitForTimeout(900)
-    await page.getByLabel('New task').pressSequentially('Ship the README', { delay: 70 })
-    await page.keyboard.press('Enter')
-    await page.waitForTimeout(1200)
-    await page.getByRole('checkbox', { name: /Mark “Ship the README” done/ }).click()
-    await page.waitForTimeout(1000)
+    await page.getByRole('button', { name: 'Insights', exact: true }).click()
+    await page.waitForTimeout(1800)
     await page.getByRole('button', { name: 'Home', exact: true }).click()
     await page.waitForTimeout(1200)
     const video = page.video()!

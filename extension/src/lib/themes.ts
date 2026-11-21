@@ -39,6 +39,16 @@ export const PALETTES: Palette[] = [
   { id: 'mocha', name: 'Mocha', light: t('#f5eee6', '#fffcf8', '#2a1d13', '#6a5747', '#e6d8c8', '#eee2d4', '#7c4718', '#ffffff', '#f1dfcb'), dark: t('#17110d', '#201813', '#f3e8dc', '#b9a694', '#3a2d23', '#2b211a', '#e3b184', '#2c1704', '#3b2a1a') },
   { id: 'cosmos', name: 'Cosmos', light: t('#f4f1fb', '#ffffff', '#1d1430', '#5a4f73', '#e0d9f0', '#eae4f6', '#6a2cc2', '#ffffff', '#e8dcfa'), dark: t('#0b0816', '#130f22', '#efeaff', '#a39bc4', '#2b2445', '#1d1832', '#c59bff', '#1d0a3d', '#2a1b4d') },
   { id: 'citrus', name: 'Citrus', light: t('#f9f8e8', '#fffffa', '#22210f', '#5f5d3f', '#e6e3c4', '#efedd5', '#7a6200', '#ffffff', '#f2ebbd'), dark: t('#131309', '#1c1c0f', '#f3f2df', '#b0ae8e', '#34331f', '#272616', '#f0d23c', '#262000', '#38330f') },
+  // Handheld console, beach and editor classics.
+  { id: 'psp', name: 'PSP', light: t('#eaf0fb', '#ffffff', '#07122b', '#44547a', '#cdd8ee', '#dde6f6', '#1f4fc2', '#ffffff', '#d5e1fa'), dark: t('#02040d', '#0a1226', '#e8f0ff', '#93a6d0', '#1b2a52', '#111c3a', '#5a9bff', '#020a1e', '#0f2552') },
+  { id: 'beach', name: 'Beach', light: t('#f6f0e3', '#fffdf8', '#16303d', '#566a73', '#e6dcc4', '#efe6d2', '#1d6c99', '#ffffff', '#d6e9f3'), dark: t('#0a1822', '#10242f', '#f4ecda', '#a9bcc4', '#1f3a49', '#173040', '#8fd3f0', '#06202e', '#1a3a4d') },
+  { id: 'aiml', name: 'AIML', light: t('#fbf2fc', '#ffffff', '#1b0a22', '#6a4a72', '#ecd3f0', '#f5e4f7', '#a010a0', '#ffffff', '#f6d9f6'), dark: t('#060108', '#120619', '#ffffff', '#b8a4c4', '#2f1238', '#1e0b27', '#ec5ad8', '#1a0018', '#341039') },
+  { id: 'dracula', name: 'Dracula', light: t('#f6f4fb', '#ffffff', '#282a36', '#5b5f78', '#e0dcee', '#ebe8f5', '#6e3fd0', '#ffffff', '#e7defa'), dark: t('#21222c', '#282a36', '#f8f8f2', '#a9afc9', '#3d4054', '#343746', '#bd93f9', '#1b1030', '#3a2f5c') },
+  { id: 'nord', name: 'Nord', light: t('#eceff4', '#ffffff', '#2e3440', '#4c566a', '#d8dee9', '#e5e9f0', '#41648a', '#ffffff', '#d9e4f0'), dark: t('#2e3440', '#3b4252', '#eceff4', '#b4bfd1', '#4c566a', '#434c5e', '#88c0d0', '#1b2530', '#3d5560') },
+  { id: 'solarized', name: 'Solarized', light: t('#fdf6e3', '#fffbee', '#073642', '#586e75', '#eee8d5', '#f5eed9', '#17756e', '#ffffff', '#d9ece6'), dark: t('#002b36', '#073642', '#eee8d5', '#a0b0b0', '#17505c', '#0c3c48', '#2fb3a9', '#00212a', '#0f4a50') },
+  { id: 'gruvbox', name: 'Gruvbox', light: t('#fbf1c7', '#fdf6d8', '#3c3836', '#665c54', '#e6d9a8', '#f2e5b4', '#af3a03', '#ffffff', '#f6d9b5'), dark: t('#282828', '#32302f', '#ebdbb2', '#bdae93', '#504945', '#3c3836', '#fabd2f', '#2a1c00', '#4a3c14') },
+  { id: 'catppuccin', name: 'Catppuccin', light: t('#eff1f5', '#ffffff', '#4c4f69', '#5c5f77', '#ccd0da', '#e6e9ef', '#8839ef', '#ffffff', '#e8d9fb'), dark: t('#1e1e2e', '#313244', '#cdd6f4', '#a6adc8', '#45475a', '#3a3b4f', '#cba6f7', '#1e1030', '#46395f') },
+  { id: 'tokyo', name: 'Tokyo Night', light: t('#e6e7ed', '#ffffff', '#343b58', '#4c505e', '#cfd0da', '#dcdde6', '#34548a', '#ffffff', '#d3dcef'), dark: t('#1a1b26', '#24283b', '#c0caf5', '#9aa5ce', '#363b58', '#2c3149', '#7aa2f7', '#0f1530', '#2b3a63') },
   // True black and pure white: the base for the two-colour pairs below.
   { id: 'black', name: 'Black', light: t('#ffffff', '#f6f6f7', '#0a0a0a', '#55555c', '#e2e2e6', '#ececef', '#1d5fbf', '#ffffff', '#dbe7f8'), dark: t('#000000', '#0c0c0e', '#f5f5f7', '#a1a1aa', '#26262b', '#18181c', '#4d9fff', '#04101f', '#0d2038') },
 ]
@@ -60,10 +70,18 @@ export const PAIR_COLOURS: { name: string; onBlack: string; onWhite: string }[] 
 export interface Look {
   id: string
   name: string
-  settings: { theme: 'light' | 'dark'; palette: string; background: 'glow' | 'aurora' | 'gradient' | 'dots' | 'grid' | 'stars'; cardStyle: 'solid' | 'glass' | 'outline'; radius: 'sharp' | 'rounded' | 'soft'; font: 'classic' | 'modern' | 'editorial' | 'rounded' | 'mono' }
+  settings: { theme: 'light' | 'dark'; palette: string; background: 'glow' | 'aurora' | 'gradient' | 'dots' | 'grid' | 'stars' | 'psp' | 'beach' | 'network'; cardStyle: 'solid' | 'glass' | 'outline'; radius: 'sharp' | 'rounded' | 'soft'; font: 'classic' | 'modern' | 'editorial' | 'rounded' | 'mono' }
 }
 
 export const LOOKS: Look[] = [
+  { id: 'aiml', name: 'AIML', settings: { theme: 'dark', palette: 'aiml', background: 'network', cardStyle: 'glass', radius: 'rounded', font: 'modern' } },
+  { id: 'psp', name: 'PSP', settings: { theme: 'dark', palette: 'psp', background: 'psp', cardStyle: 'glass', radius: 'sharp', font: 'modern' } },
+  { id: 'beachday', name: 'Beach day', settings: { theme: 'light', palette: 'beach', background: 'beach', cardStyle: 'glass', radius: 'soft', font: 'rounded' } },
+  { id: 'beachnight', name: 'Beach at night', settings: { theme: 'dark', palette: 'beach', background: 'beach', cardStyle: 'glass', radius: 'soft', font: 'rounded' } },
+  { id: 'vampire', name: 'Dracula', settings: { theme: 'dark', palette: 'dracula', background: 'glow', cardStyle: 'solid', radius: 'rounded', font: 'mono' } },
+  { id: 'fjord', name: 'Nord', settings: { theme: 'dark', palette: 'nord', background: 'gradient', cardStyle: 'solid', radius: 'rounded', font: 'modern' } },
+  { id: 'cafe', name: 'Catppuccin', settings: { theme: 'dark', palette: 'catppuccin', background: 'aurora', cardStyle: 'glass', radius: 'soft', font: 'rounded' } },
+  { id: 'neontokyo', name: 'Tokyo Night', settings: { theme: 'dark', palette: 'tokyo', background: 'grid', cardStyle: 'glass', radius: 'rounded', font: 'modern' } },
   { id: 'northern', name: 'Northern lights', settings: { theme: 'dark', palette: 'midnight', background: 'aurora', cardStyle: 'glass', radius: 'soft', font: 'modern' } },
   { id: 'synthwave', name: 'Synthwave', settings: { theme: 'dark', palette: 'neon', background: 'grid', cardStyle: 'glass', radius: 'sharp', font: 'mono' } },
   { id: 'stargazer', name: 'Stargazer', settings: { theme: 'dark', palette: 'cosmos', background: 'stars', cardStyle: 'glass', radius: 'rounded', font: 'rounded' } },

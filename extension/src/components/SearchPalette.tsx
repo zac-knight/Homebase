@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { asUrl, webSearch } from '../lib/platform'
 import { type AskResponse, type ServerResult, askServer, searchServer } from '../lib/api'
 import { type IndexedBookmark, searchLocal } from '../lib/search'
 import { logEvent } from '../lib/store'
 import { Favicon, Icon } from './ui'
 
-type Item = { kind: 'local' | 'server'; url: string; title: string; folder: string } | { kind: 'ask' }
+type Item = { kind: 'local' | 'server'; url: string; title: string; folder: string } | { kind: 'ask' } | { kind: 'web'; query: string } | { kind: 'go'; url: string }
 
 interface Props {
   index: IndexedBookmark[]
   openCounts: Map<string, number>
   /** True when sync is on and signed in: adds meaning-based results and the ask action. */
   serverEnabled: boolean
+  /** Text already typed into the page's search bar. */
+  initialQuery?: string
   onClose: () => void
 }
 
-export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Props) {
-  const [query, setQuery] = useState('')
+export function SearchPalette({ index, openCounts, serverEnabled, initialQuery = '', onClose }: Props) {
+  const [query, setQuery] = useState(initialQuery)
   const [active, setActive] = useState(0)
   const [server, setServer] = useState<{ query: string; results: ServerResult[] }>({ query: '', results: [] })
   const [answer, setAnswer] = useState<AskResponse | 'loading' | null>(null)
@@ -45,6 +48,11 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
       for (const r of server.results) if (!seen.has(r.url)) out.push({ kind: 'server', url: r.url, title: r.title || r.url, folder: r.folder })
     }
     if (serverEnabled && trimmed.split(/\s+/).length >= 3) out.push({ kind: 'ask' })
+    // Like the address bar: a typed address goes first, a web search always closes the list, and
+    // it is the only choice when no bookmark matches.
+    const address = asUrl(trimmed)
+    if (address) out.unshift({ kind: 'go', url: address })
+    if (trimmed) out.push({ kind: 'web', query: trimmed })
     return out
   }, [local, server, trimmed, serverEnabled])
 
@@ -61,6 +69,14 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
 
   function choose(item: Item | undefined, newTab: boolean) {
     if (!item) return
+    if (item.kind === 'web' || item.kind === 'go') {
+      void logEvent({ type: 'search', query: trimmed })
+      if (item.kind === 'web') webSearch(item.query, newTab)
+      else if (newTab) window.open(item.url, '_blank', 'noopener')
+      else window.location.assign(item.url)
+      if (newTab) onClose()
+      return
+    }
     if (item.kind === 'ask') {
       setAnswer('loading')
       askServer(trimmed)
@@ -82,7 +98,9 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
       if (items.length) setActive((current + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length)
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      choose(items[current], e.metaKey || e.ctrlKey)
+      // Shift Enter always searches the web, whatever is highlighted.
+      const target = e.shiftKey ? items.find((i) => i.kind === 'web') : items[current]
+      choose(target, e.metaKey || e.ctrlKey)
     }
   }
 
@@ -93,7 +111,7 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Search bookmarks"
+        aria-label="Search bookmarks or the web"
         // Clicking a result must not take focus away from the input, or the keyboard stops working.
         onMouseDown={(e) => e.target instanceof HTMLElement && !e.target.closest('input, a') && e.preventDefault()}
         onKeyDown={(e) => {
@@ -111,8 +129,8 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
             aria-controls="palette-results"
             aria-activedescendant={items.length ? `palette-option-${current}` : undefined}
             aria-autocomplete="list"
-            aria-label="Search bookmarks"
-            placeholder={serverEnabled ? 'Search by title, or describe what the page was about' : 'Search bookmarks'}
+            aria-label="Search bookmarks or the web"
+            placeholder={serverEnabled ? 'Search by title, describe the page, or search the web' : 'Search bookmarks or the web'}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -151,7 +169,7 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
 
         <ul ref={listRef} id="palette-results" role="listbox" aria-label="Results" className="max-h-[52vh] overflow-y-auto p-2">
           {items.map((item, i) => (
-            <li key={item.kind === 'ask' ? 'ask' : `${item.kind}:${item.url}`} role="presentation">
+            <li key={item.kind === 'ask' || item.kind === 'web' ? item.kind : item.kind === 'go' ? `go:${item.url}` : `${item.kind}:${item.url}`} role="presentation">
               {i === firstServer && <div className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted uppercase">Found by meaning</div>}
               <div
                 id={`palette-option-${i}`}
@@ -168,6 +186,20 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
                       Ask your bookmarks: <span className="font-medium">{trimmed}</span>
                     </span>
                   </>
+                ) : item.kind === 'web' ? (
+                  <>
+                    <Icon name="search" className="size-4 text-accent" />
+                    <span className="truncate">
+                      Search the web for <span className="font-medium">{item.query}</span>
+                    </span>
+                  </>
+                ) : item.kind === 'go' ? (
+                  <>
+                    <Icon name="home" className="size-4 text-accent" />
+                    <span className="truncate">
+                      Go to <span className="font-medium">{item.url}</span>
+                    </span>
+                  </>
                 ) : (
                   <>
                     <Favicon url={item.url} />
@@ -179,8 +211,7 @@ export function SearchPalette({ index, openCounts, serverEnabled, onClose }: Pro
             </li>
           ))}
         </ul>
-        {trimmed && items.length === 0 && <p className="px-4 pb-4 text-sm text-muted">No bookmarks match “{trimmed}”.</p>}
-        {!trimmed && <p className="px-4 pb-4 text-sm text-muted">Type to search. ↑ ↓ to move, Enter to open, {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} Enter for a new tab.</p>}
+                {!trimmed && <p className="px-4 pb-4 text-sm text-muted">Type to search. ↑ ↓ to move, Enter to open, {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} Enter for a new tab, Shift Enter to search the web.</p>}
       </div>
     </div>
   )

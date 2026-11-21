@@ -102,3 +102,72 @@ export function computeInsights(bookmarks: Bookmark[], events: UsageEvent[], now
     ab,
   }
 }
+
+// ---- what gets used ----------------------------------------------------------------------
+
+export interface Usage {
+  bookmark: Bookmark
+  opens: number
+  /** When it was last opened, or null if never. */
+  last: number | null
+}
+
+/**
+ * Every bookmark with how often it was opened in the last `windowDays` days (all time when null),
+ * most opened first. Bookmarks that share a page count once, under the first one saved.
+ */
+export function usageRanking(bookmarks: Bookmark[], events: UsageEvent[], now: Date, windowDays: number | null): Usage[] {
+  const since = windowDays === null ? 0 : now.getTime() - windowDays * DAY
+  const opens = new Map<string, number>()
+  const last = new Map<string, number>()
+  for (const e of events) {
+    if (e.type !== 'open' || !e.url) continue
+    last.set(e.url, Math.max(last.get(e.url) ?? 0, e.ts))
+    if (e.ts >= since) opens.set(e.url, (opens.get(e.url) ?? 0) + 1)
+  }
+  const seen = new Set<string>()
+  const out: Usage[] = []
+  for (const bookmark of bookmarks) {
+    if (seen.has(bookmark.url)) continue
+    seen.add(bookmark.url)
+    out.push({ bookmark, opens: opens.get(bookmark.url) ?? 0, last: last.get(bookmark.url) ?? null })
+  }
+  return out.sort((a, b) => b.opens - a.opens || (b.last ?? 0) - (a.last ?? 0) || a.bookmark.title.localeCompare(b.bookmark.title))
+}
+
+/** Bookmarks never opened through Homebase, the longest-saved first (undated ones last). */
+export function leastUsed(bookmarks: Bookmark[], events: UsageEvent[]): Bookmark[] {
+  const opened = new Set(events.filter((e) => e.type === 'open' && e.url).map((e) => e.url))
+  const seen = new Set<string>()
+  return bookmarks
+    .filter((b) => {
+      if (opened.has(b.url) || seen.has(b.url)) return false
+      seen.add(b.url)
+      return true
+    })
+    .sort((a, b) => (a.addedAt || Infinity) - (b.addedAt || Infinity))
+}
+
+export interface FolderUse {
+  name: string
+  bookmarks: number
+  opens: number
+  /** How many of its bookmarks have been opened at least once. */
+  used: number
+}
+
+/** How much each folder is actually used, busiest first. */
+export function folderUsage(bookmarks: Bookmark[], events: UsageEvent[]): FolderUse[] {
+  const opens = new Map<string, number>()
+  for (const e of events) if (e.type === 'open' && e.url) opens.set(e.url, (opens.get(e.url) ?? 0) + 1)
+  const byFolder = new Map<string, FolderUse>()
+  for (const b of bookmarks) {
+    const f = byFolder.get(b.folderName) ?? { name: b.folderName, bookmarks: 0, opens: 0, used: 0 }
+    const n = opens.get(b.url) ?? 0
+    f.bookmarks++
+    f.opens += n
+    if (n > 0) f.used++
+    byFolder.set(b.folderName, f)
+  }
+  return [...byFolder.values()].sort((a, b) => b.opens - a.opens || a.name.localeCompare(b.name))
+}

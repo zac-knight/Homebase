@@ -11,12 +11,19 @@ A short account of what data exists, where it lives and who can see it.
 | Settings, favourites, card order | `chrome.storage.local` | No |
 | Appearance choices and your background picture | `localStorage` of the extension page | No |
 | Captured page text | `chrome.storage.local`; server if sync is on | Only with capture **and** sync on |
-| Browsing history (optional) | Read in the page, never stored | Never |
+| Browsing history and recently closed tabs (optional) | Read in the page, never stored | Never |
+| Scratchpad note | `chrome.storage.local` | No |
+| Weather place (name and coordinates) | `chrome.storage.local` | To open-meteo.com, only while weather is on |
 | Embeddings | Server database | Derived on the server |
 | Sign-in tokens | `chrome.storage.local` | Sent to your server only |
 
-With sync off the extension makes no network requests at all: favicons come from Chrome's local
-cache and the demo library is bundled.
+With sync off and weather off the extension makes no network requests at all: favicons come from
+Chrome's local cache and the demo library is bundled.
+
+The weather chip is the one exception, and it can be switched off in Settings. While it is on, the
+page asks [open-meteo.com](https://open-meteo.com) for the current weather at the place you chose
+(North Lakes by default) about every 20 minutes. The request carries that place's latitude and
+longitude and nothing else: no account, no cookies, nothing about your bookmarks or browsing.
 
 ## Who can see what
 

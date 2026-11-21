@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { asUrl } from './platform'
+import { type RecentItem, mergeRecent } from './recent'
+import { weatherKind } from './weather'
+import { sortLinks } from '../components/Home'
+import { assignSlots, moveToSlot, slotCount } from './slots'
+import { PALETTES } from './themes'
 import { recentList, recommend, rightNow, variantFor } from './recommend'
 import { buildIndex, searchLocal } from './search'
-import { computeInsights, duplicateGroups, wilson } from './stats'
+import { computeInsights, duplicateGroups, folderUsage, leastUsed, usageRanking, wilson } from './stats'
 import { diffSnapshot, unsentEvents } from './sync'
 import type { Bookmark, UsageEvent } from './types'
 import { canonicalise, domainOf, isWebUrl } from './urls'
@@ -169,5 +175,113 @@ describe('sync diff', () => {
   it('only sends events newer than the watermark', () => {
     const events = [open('https://a.com', 3, 9), open('https://a.com', 1, 9)]
     expect(unsentEvents(events, events[0].ts)).toEqual([events[1]])
+  })
+})
+
+describe('folder grid slots', () => {
+  it('keeps saved slots and fills the gaps in order', () => {
+    expect(assignSlots(['a', 'b', 'c'], { b: 0 })).toEqual({ b: 0, a: 1, c: 2 })
+  })
+  it('ignores duplicate or invalid saved slots', () => {
+    expect(assignSlots(['a', 'b'], { a: 2, b: 2 })).toEqual({ a: 2, b: 0 })
+    expect(assignSlots(['a'], { a: -1 })).toEqual({ a: 0 })
+  })
+  it('moves to an empty slot and swaps with an occupied one', () => {
+    expect(moveToSlot({ a: 0, b: 1 }, 'a', 5)).toEqual({ a: 5, b: 1 })
+    expect(moveToSlot({ a: 0, b: 1 }, 'a', 1)).toEqual({ a: 1, b: 0 })
+  })
+  it('counts whole rows with spare room', () => {
+    expect(slotCount({ a: 0 }, 4)).toBe(8)
+    expect(slotCount({ a: 6 }, 4)).toBe(8)
+    expect(slotCount({ a: 7 }, 4)).toBe(12)
+  })
+})
+
+describe('typed address detection', () => {
+  it('treats addresses as addresses and words as searches', () => {
+    expect(asUrl('github.com/foo')).toBe('https://github.com/foo')
+    expect(asUrl('https://example.com/a?b=1')).toBe('https://example.com/a?b=1')
+    expect(asUrl('localhost:3000')).toBe('https://localhost:3000')
+    expect(asUrl('best pizza near me')).toBeNull()
+    expect(asUrl('node.js tutorial')).toBeNull()
+  })
+})
+
+describe('palette contrast', () => {
+  const lum = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const ratio = (a: string, b: string) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
+  for (const palette of PALETTES) {
+    for (const mode of ['light', 'dark'] as const) {
+      it(`${palette.name} ${mode} stays readable`, () => {
+        const c = palette[mode]
+        const pairs: [string, string, string][] = [
+          ['ink on page', c.ink, c.bg], ['ink on card', c.ink, c.card], ['muted on page', c.muted, c.bg], ['muted on card', c.muted, c.card],
+          ['muted on hover', c.muted, c.hover], ['accent text on card', c.accent, c.card], ['label on accent', c.accentInk, c.accent],
+        ]
+        const low = pairs.filter(([, a, b]) => ratio(a, b) < 4.5).map(([name, a, b]) => `${name} ${ratio(a, b).toFixed(2)}`)
+        expect(low).toEqual([])
+      })
+    }
+  }
+})
+
+describe('usage ranking', () => {
+  const day = 86_400_000
+  const now = new Date(2026, 10, 21, 12)
+  const a = bm('a', 'Alpha', 'https://a.example/', 'Dev', 400)
+  const b = bm('b', 'Beta', 'https://b.example/', 'Dev', 100)
+  const c = bm('c', 'Gamma', 'https://c.example/', 'Read', 300)
+  const open = (url: string, daysAgo: number): UsageEvent => ({ id: `${url}${daysAgo}`, type: 'open', url, ts: now.getTime() - daysAgo * day, hour: 9, dow: 1 })
+  const events = [open(a.url, 1), open(a.url, 2), open(b.url, 3), open(b.url, 40), open(b.url, 41), open(b.url, 42)]
+
+  it('ranks by opens inside the window and keeps all-time separate', () => {
+    expect(usageRanking([a, b, c], events, now, 7).map((u) => [u.bookmark.id, u.opens])).toEqual([['a', 2], ['b', 1], ['c', 0]])
+    expect(usageRanking([a, b, c], events, now, null).map((u) => [u.bookmark.id, u.opens])).toEqual([['b', 4], ['a', 2], ['c', 0]])
+  })
+  it('lists never-opened bookmarks, longest saved first', () => {
+    expect(leastUsed([a, b, c], events).map((x) => x.id)).toEqual(['c'])
+    expect(leastUsed([a, b, c], []).map((x) => x.id)).toEqual(['a', 'c', 'b'])
+  })
+  it('totals use per folder', () => {
+    expect(folderUsage([a, b, c], events)).toEqual([
+      { name: 'Dev', bookmarks: 2, opens: 6, used: 2 },
+      { name: 'Read', bookmarks: 1, opens: 0, used: 0 },
+    ])
+  })
+})
+
+describe('recent tabs', () => {
+  const item = (id: string, url: string, ts: number, kind: RecentItem['kind']): RecentItem => ({ id, title: id, url, ts, kind })
+  it('merges newest first, once per page, preferring the closed tab', () => {
+    const closed = [item('c1', 'https://a.example/', 1000, 'closed')]
+    const visited = [item('v1', 'https://a.example/', 1000, 'visited'), item('v2', 'https://b.example/', 3000, 'visited'), item('v3', 'chrome://settings', 5000, 'visited')]
+    expect(mergeRecent(closed, visited, 5).map((r) => r.id)).toEqual(['v2', 'c1'])
+  })
+  it('stops at the limit', () => {
+    const many = Array.from({ length: 9 }, (_, i) => item(`v${i}`, `https://${i}.example/`, i, 'visited'))
+    expect(mergeRecent([], many, 3)).toHaveLength(3)
+  })
+})
+
+describe('weather codes', () => {
+  it('groups codes into the looks the page can draw', () => {
+    expect(weatherKind(0).kind).toBe('clear')
+    expect(weatherKind(2).kind).toBe('partly')
+    expect(weatherKind(63).kind).toBe('rain')
+    expect(weatherKind(81).label).toBe('Showers')
+    expect(weatherKind(96).kind).toBe('storm')
+  })
+})
+
+describe('link sorting', () => {
+  const links = [bm('1', 'Zed', 'https://z.example/'), bm('2', 'apple', 'https://a.example/'), bm('3', 'Mid', 'https://m.example/')]
+  const counts = new Map([['https://m.example/', 5], ['https://z.example/', 1]])
+  it('keeps saved order, sorts A to Z ignoring case, or by opens with ties in saved order', () => {
+    expect(sortLinks(links, 'saved', counts).map((b) => b.id)).toEqual(['1', '2', '3'])
+    expect(sortLinks(links, 'az', counts).map((b) => b.id)).toEqual(['2', '3', '1'])
+    expect(sortLinks(links, 'used', counts).map((b) => b.id)).toEqual(['3', '1', '2'])
   })
 })

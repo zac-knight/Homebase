@@ -1,13 +1,25 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { faviconUrl } from '../lib/platform'
 import type { Bookmark } from '../lib/types'
 import { domainOf } from '../lib/urls'
 
-export type IconName = 'trash' | 'folder' | 'search' | 'star' | 'grip' | 'chart' | 'settings' | 'home' | 'close' | 'spark' | 'code' | 'book' | 'database' | 'wrench' | 'plane' | 'cap' | 'pot' | 'bookmark' | 'check' | 'plus'
+export type IconName = 'trash' | 'folder' | 'search' | 'star' | 'grip' | 'chart' | 'settings' | 'home' | 'close' | 'spark' | 'code' | 'book' | 'database' | 'wrench' | 'plane' | 'cap' | 'pot' | 'bookmark' | 'check' | 'plus' | 'edit' | 'sun' | 'sunset' | 'moon' | 'cloud' | 'rain' | 'bolt' | 'snow' | 'partly' | 'history' | 'tabs' | 'sort'
 
 const PATHS: Record<IconName, ReactNode> = {
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  sun: <path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-13v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17m10-10 1.4-1.4" />,
+  sunset: <path d="M7 17a5 5 0 0 1 10 0M12 6v3M4.2 10.2l1.6 1.6m12.4-1.6-1.6 1.6M2 17h2m16 0h2M4 21h16" />,
+  cloud: <path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a4.5 4.5 0 0 1 0 9.5H7Z" />,
+  rain: <path d="M7 14.5a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 5a4.5 4.5 0 0 1 0 9.5H7ZM8 18l-1 2.5m5.5-2.5-1 2.5m5.5-2.5-1 2.5" />,
+  bolt: <path d="m13 3-8 10h6l-1 8 8-10h-6l1-8Z" />,
+  snow: <path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9" />,
+  partly: <path d="M7 7V5m-4 4H1m2.9-4.1L2.5 3.5m9.4 1.4 1.4-1.4M9.5 9.5A3.5 3.5 0 0 0 4 11.8M9 20a3.5 3.5 0 0 1-.4-7A5 5 0 0 1 18 14.5a2.8 2.8 0 0 1 0 5.5H9Z" />,
+  history: <path d="M3 12a9 9 0 1 0 3-6.7L3 8m0-4v4h4m5-1v5l3 2" />,
+  tabs: <path d="M4 9h11v11H4V9Zm4-5h12v12" />,
+  sort: <path d="M7 4v16m0 0-3-3m3 3 3-3M17 20V4m0 0-3 3m3-3 3 3" />,
+  moon: <path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" />,
+  edit: <path d="m4 20 4-1 11-11a2.1 2.1 0 0 0-3-3L5 16l-1 4Zm10-13 3 3" />,
   trash: <path d="M4 7h16M10 11v6m4-6v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />,
   folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />,
   search: <path d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />,
@@ -54,7 +66,7 @@ export function Favicon({ url, size = 16 }: { url: string; size?: number }) {
     <span
       aria-hidden="true"
       className="grid shrink-0 place-items-center font-semibold text-white uppercase"
-      style={{ width: size, height: size, borderRadius: size * 0.28, fontSize: size * 0.56, lineHeight: 1, background: `hsl(${hue(domain)} 42% 36%)` }}
+      style={{ width: size, height: size, borderRadius: size * 0.28, fontSize: size * 0.56, lineHeight: 1, background: `hsl(calc(var(--fav-base, 0) + ${hue(domain) % 360} * var(--fav-spread, 1)) 42% 36%)` }}
     >
       {domain[0]}
     </span>
@@ -84,10 +96,11 @@ export function Toggle({ checked, onChange, label, description, disabled }: { ch
 }
 
 export function Card({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
+  const id = useId()
   return (
-    <section className="surface rise rounded-2xl border border-line bg-card p-5">
+    <section aria-labelledby={id} className="surface rise rounded-2xl border border-line bg-card p-5">
       <div className="mb-3 flex items-baseline justify-between gap-4">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 id={id} className="text-sm font-semibold">{title}</h2>
         {aside && <div className="text-xs text-muted">{aside}</div>}
       </div>
       {children}
@@ -95,9 +108,9 @@ export function Card({ title, children, aside }: { title: string; children: Reac
   )
 }
 
-export function BookmarkRow({ bookmark, pinned, onOpen, onTogglePin, onRemove, height = 34, style, newTab = false }: { bookmark: Bookmark; pinned: boolean; onOpen: (b: Bookmark) => void; onTogglePin: (b: Bookmark) => void; onRemove: (b: Bookmark) => void; height?: number; style?: React.CSSProperties; newTab?: boolean }) {
+export function BookmarkRow({ bookmark, pinned, onOpen, onTogglePin, onRemove, height = 34, style, newTab = false, animateIn = false, badge }: { bookmark: Bookmark; pinned: boolean; onOpen: (b: Bookmark) => void; onTogglePin: (b: Bookmark) => void; onRemove: (b: Bookmark) => void; height?: number; style?: React.CSSProperties; newTab?: boolean; /** Slide in with the folder's other links, in order. */ animateIn?: boolean; /** A small tag after the title, such as how often it is opened. */ badge?: string }) {
   return (
-    <li className="group flex items-center gap-0.5" style={{ height, ...style }}>
+    <li className={`group flex items-center gap-0.5 ${animateIn ? 'row-in' : ''}`} style={{ height, ...style }}>
       <a
         href={bookmark.url}
         {...(newTab ? { target: '_blank', rel: 'noopener' } : {})}
@@ -107,8 +120,9 @@ export function BookmarkRow({ bookmark, pinned, onOpen, onTogglePin, onRemove, h
         className="row-link flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-md px-2 text-sm hover:bg-hover"
       >
         <Favicon url={bookmark.url} />
-        <span className="truncate">{bookmark.title}</span>
+        <span className="min-w-0 flex-1 truncate">{bookmark.title}</span>
       </a>
+      {badge && <span className="mr-1 shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] text-ink tabular-nums">{badge}</span>}
       <button
         type="button"
         aria-pressed={pinned}

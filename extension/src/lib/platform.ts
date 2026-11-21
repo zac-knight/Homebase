@@ -58,7 +58,11 @@ function flatten(nodes: chrome.bookmarks.BookmarkTreeNode[], path: string[], roo
 export async function loadBookmarks(): Promise<Bookmark[]> {
   if (!isExtension) {
     const removed = new Set(await kv.get<string[]>('demoRemoved', []))
-    return demoLibrary().filter((b) => !removed.has(b.id))
+    const gone = new Set(await kv.get<string[]>('demoFoldersGone', []))
+    const names = await kv.get<Record<string, string>>('demoFolderNames', {})
+    return demoLibrary()
+      .filter((b) => !removed.has(b.id) && !gone.has(b.folderId))
+      .map((b) => (names[b.folderId] ? { ...b, folderName: names[b.folderId] } : b))
   }
   const [root] = await chrome.bookmarks.getTree()
   const out: Bookmark[] = []
@@ -84,6 +88,126 @@ export async function removeBookmark(bookmark: Bookmark): Promise<() => Promise<
   return async () => (await chrome.bookmarks.create({ parentId: node.parentId, index: node.index, title: node.title, url: node.url })).id
 }
 
+// ---- folders -----------------------------------------------------------------------------
+
+export interface FolderInfo {
+  id: string
+  name: string
+}
+
+function walkFolders(nodes: chrome.bookmarks.BookmarkTreeNode[], out: FolderInfo[]) {
+  for (const node of nodes) {
+    if (node.url || !node.children) continue
+    // A folder that only holds other folders is not a card; the ones inside it are.
+    if (node.children.length === 0 || node.children.some((c) => c.url)) out.push({ id: node.id, name: node.title })
+    walkFolders(node.children, out)
+  }
+}
+
+/** Chrome's own containers (Bookmarks bar, Other bookmarks, ...) cannot be renamed or deleted. */
+export const isRootFolder = (id: string): boolean => (isExtension ? ['1', '2', '3'].includes(id) : id === 'root')
+
+/** Every folder, empty ones included, so a folder you just made has a place before it holds a link. */
+export async function loadFolders(): Promise<FolderInfo[]> {
+  if (!isExtension) {
+    const gone = new Set(await kv.get<string[]>('demoFoldersGone', []))
+    const names = await kv.get<Record<string, string>>('demoFolderNames', {})
+    const custom = await kv.get<FolderInfo[]>('demoFolders', [])
+    const fromLibrary = new Map<string, FolderInfo>()
+    for (const b of demoLibrary()) fromLibrary.set(b.folderId, { id: b.folderId, name: b.folderName })
+    return [...fromLibrary.values(), ...custom].filter((f) => !gone.has(f.id)).map((f) => ({ ...f, name: names[f.id] ?? f.name }))
+  }
+  const [root] = await chrome.bookmarks.getTree()
+  const out: FolderInfo[] = []
+  for (const container of root.children ?? []) walkFolders(container.children ?? [], out)
+  return out
+}
+
+/** New folders go on the Bookmarks bar, Chrome's own first container. */
+export async function createFolder(name: string): Promise<FolderInfo> {
+  if (!isExtension) {
+    const folder = { id: `f-${crypto.randomUUID()}`, name }
+    await kv.set('demoFolders', [...(await kv.get<FolderInfo[]>('demoFolders', [])), folder])
+    return folder
+  }
+  const node = await chrome.bookmarks.create({ parentId: '1', title: name })
+  return { id: node.id, name }
+}
+
+export async function renameFolder(ids: string[], name: string): Promise<void> {
+  if (!isExtension) {
+    await kv.set('demoFolderNames', { ...(await kv.get<Record<string, string>>('demoFolderNames', {})), ...Object.fromEntries(ids.map((id) => [id, name])) })
+    return
+  }
+  await Promise.all(ids.map((id) => chrome.bookmarks.update(id, { title: name })))
+}
+
+async function restoreTree(node: chrome.bookmarks.BookmarkTreeNode, parentId: string, index?: number): Promise<string> {
+  const made = await chrome.bookmarks.create({ parentId, index, title: node.title, url: node.url })
+  for (const child of node.children ?? []) await restoreTree(child, made.id)
+  return made.id
+}
+
+/**
+ * Deletes folders and everything in them. The returned function puts them back (Chrome gives
+ * restored nodes new ids) and resolves to the first restored folder's id.
+ */
+export async function deleteFolders(ids: string[]): Promise<() => Promise<string>> {
+  if (!isExtension) {
+    await kv.set('demoFoldersGone', [...(await kv.get<string[]>('demoFoldersGone', [])), ...ids])
+    return async () => {
+      await kv.set('demoFoldersGone', (await kv.get<string[]>('demoFoldersGone', [])).filter((id) => !ids.includes(id)))
+      return ids[0]
+    }
+  }
+  const trees = await Promise.all(ids.map(async (id) => (await chrome.bookmarks.getSubTree(id))[0]))
+  await Promise.all(ids.map((id) => chrome.bookmarks.removeTree(id)))
+  return async () => {
+    const restored: string[] = []
+    for (const tree of trees) restored.push(await restoreTree(tree, tree.parentId ?? '1', tree.index))
+    return restored[0]
+  }
+}
+
+// ---- tab groups --------------------------------------------------------------------------
+
+/** Opens every link as one named tab group (the first one focused). Plain tabs outside Chrome. */
+export async function openAllInGroup(urls: string[], title: string): Promise<void> {
+  if (!isExtension || !chrome.tabs?.group) {
+    for (const url of urls) window.open(url, '_blank', 'noopener')
+    return
+  }
+  const tabs = await Promise.all(urls.map((url, i) => chrome.tabs.create({ url, active: i === 0 })))
+  const tabIds = tabs.flatMap((t) => (t.id === undefined ? [] : [t.id]))
+  if (tabIds.length === 0) return
+  // The bundled typings describe these calls as callback style; with no callback they return promises.
+  const groupId = await (chrome.tabs.group({ tabIds: tabIds as [number, ...number[]] }) as unknown as Promise<number>)
+  await chrome.tabGroups.update(groupId, { title, collapsed: false })
+}
+
+// ---- web search --------------------------------------------------------------------------
+
+const SCHEME = /^[a-z][a-z0-9+.-]*:\/\/\S+$/i
+const HOSTLIKE = /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-z0-9-]+\.)+[a-z]{2,})(:\d+)?([/?#]\S*)?$/i
+
+/** The address a typed line stands for, or null when it is just words to search for. */
+export function asUrl(text: string): string | null {
+  const t = text.trim()
+  if (SCHEME.test(t)) return t
+  return HOSTLIKE.test(t) ? `https://${t}` : null
+}
+
+/** Searches with the browser's own default search engine; the demo page falls back to Google. */
+export function webSearch(text: string, newTab: boolean): void {
+  if (isExtension && chrome.search) {
+    void chrome.search.query({ text, disposition: newTab ? 'NEW_TAB' : 'CURRENT_TAB' })
+    return
+  }
+  const url = `https://www.google.com/search?q=${encodeURIComponent(text)}`
+  if (newTab) window.open(url, '_blank', 'noopener')
+  else window.location.assign(url)
+}
+
 export function onBookmarksChanged(callback: () => void): () => void {
   if (!isExtension) return () => {}
   const events = [chrome.bookmarks.onCreated, chrome.bookmarks.onRemoved, chrome.bookmarks.onChanged, chrome.bookmarks.onMoved]
@@ -94,7 +218,7 @@ export function onBookmarksChanged(callback: () => void): () => void {
 /** Chrome's own favicon cache; no network request leaves the browser. */
 export function faviconUrl(pageUrl: string): string | null {
   if (!isExtension) return null
-  return `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=32`
+  return `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(pageUrl)}&size=64`
 }
 
 // ---- demo mode ---------------------------------------------------------------------------

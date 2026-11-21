@@ -1,5 +1,5 @@
 import { demoEvents, isExtension, kv, loadBookmarks } from './platform'
-import { DEFAULT_SETTINGS, type Settings, type Task, type UsageEvent } from './types'
+import { DEFAULT_SETTINGS, type Settings, type UsageEvent } from './types'
 
 const MAX_EVENTS = 20_000
 
@@ -42,5 +42,6 @@ export const getFavourites = () => kv.get<string[]>('favourites', [])
 export const setFavourites = (ids: string[]) => kv.set('favourites', ids)
 export const getFolderOrder = () => kv.get<string[]>('folderOrder', [])
 export const setFolderOrder = (ids: string[]) => kv.set('folderOrder', ids)
-export const getTasks = () => kv.get<Task[]>('tasks', [])
-export const setTasks = (tasks: Task[]) => kv.set('tasks', tasks)
+/** Where each folder sits on the grid: folder id to slot number, counted left to right, top to bottom. */
+export const getFolderSlots = () => kv.get<Record<string, number>>('folderSlots', {})
+export const setFolderSlots = (slots: Record<string, number>) => kv.set('folderSlots', slots)
